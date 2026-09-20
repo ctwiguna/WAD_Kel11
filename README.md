@@ -12,22 +12,6 @@ KeluargaFin membantu keluarga (Ayah, Ibu, Anak) mencatat pengeluaran bersama, me
 - Chandra TW
 - Arjuna Rangga Lengkey
 
-## Fitur (Perbaikan 1)
-
-- **Login demo**: Google atau tautan email (mode demo, tanpa backend)
-- **Onboarding household**: buat workspace keluarga + profil Ayah, Ibu, Anak
-- **Transaksi manual**: pengeluaran, pemasukan, dan transfer antar akun
-- **Kategori**: 8 kategori bawaan + kategori kustom
-- **Budget**: budget bulanan household & per kategori, dengan status aman / perlu perhatian / lewat budget
-- **Dashboard**: ringkasan "bulan ini keluarga kita aman?", breakdown per anggota, kategori terbesar, transaksi terbaru
-- **Privasi & Data**: lihat event, hapus data, keluar akun
-
-Aturan penting yang dipegang aplikasi:
-
-- Transfer **tidak** dihitung sebagai pengeluaran (budget & kategori)
-- Hanya transaksi berstatus **approved** yang masuk perhitungan
-- Tidak ada field password / PIN / OTP bank di mana pun
-
 ## Teknologi
 
 - React 19 + Vite
