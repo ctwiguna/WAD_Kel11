@@ -427,3 +427,13 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Build output (Vite)
+dist
+dist-ssr
+
+# Local env files (Vite)
+*.local
+
+# macOS
+.DS_Store
