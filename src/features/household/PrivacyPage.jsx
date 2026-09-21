@@ -6,7 +6,7 @@ import { BottomSheet } from '../../components/ui/BottomSheet.jsx'
 import { InlineBanner, TrustCallout } from '../../components/ui/feedback.jsx'
 import { Button, Card, SectionHeader, StatusPill } from '../../components/ui/primitives.jsx'
 
-export default function PrivacyPage({ household, onSignOut, showToast }) {
+export default function PrivacyPage({ household, showToast }) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [failMode, setFailMode] = useState(() => {
     try {
@@ -47,7 +47,7 @@ export default function PrivacyPage({ household, onSignOut, showToast }) {
       <Card className="p-4">
         <SectionHeader title="Data yang disimpan" />
         <ul className="flex flex-col gap-2 text-caption text-ink-700">
-          <li>• Email dan cara kamu masuk (Google atau tautan email).</li>
+          <li>• Nama keluarga dan profil anggota (Ayah, Ibu, Anak).</li>
           <li>• Transaksi yang kamu catat: nominal, tanggal, anggota, kategori, catatan.</li>
           <li>• Label akun seperti “Tunai”, “BCA”, atau “GoPay”, sekadar teks, bukan kredensial.</li>
           <li>• Audit log perubahan penting (anggota, transaksi, budget).</li>
@@ -94,9 +94,6 @@ export default function PrivacyPage({ household, onSignOut, showToast }) {
           <Button variant="secondary" onClick={() => setConfirmOpen(true)}>
             Hapus data di browser ini
           </Button>
-          <Button variant="ghost" onClick={onSignOut}>
-            Keluar dari akun
-          </Button>
         </div>
       </Card>
 
@@ -133,8 +130,8 @@ export default function PrivacyPage({ household, onSignOut, showToast }) {
           <StatusPill tone="neutral" icon="🗓">Google Sheets: P2</StatusPill>
         </div>
         <p className="mt-3 text-caption text-ink-500">
-          Keluarga aktif: <strong>{household?.name ?? '-'}</strong>. Penghapusan akun end-to-end
-          mengikuti backend; tombol di atas membersihkan data di browser ini.
+          Keluarga aktif: <strong>{household?.name ?? '-'}</strong>. Semua data disimpan di browser
+          ini saja; tombol di atas menghapusnya dan aplikasi memulai keluarga demo baru.
         </p>
       </Card>
 
@@ -146,7 +143,7 @@ export default function PrivacyPage({ household, onSignOut, showToast }) {
       >
         <div className="flex flex-col gap-3">
           <InlineBanner tone="warning" title="Tindakan ini tidak bisa dibatalkan">
-            Kamu akan kembali ke layar onboarding setelah data dihapus.
+            Kamu akan kembali ke Beranda dengan keluarga demo baru.
           </InlineBanner>
           <Button
             variant="danger"
