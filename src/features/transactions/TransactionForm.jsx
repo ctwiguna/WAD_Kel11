@@ -378,7 +378,7 @@ export default function TransactionForm({
                 <p className="mt-1 text-micro text-ink-500">
                   {FEATURE_FLAGS.ocrUpload
                     ? 'Unggah struk atau screenshot.'
-                    : 'Belum aktif di Sprint 1 — upload & review OCR masuk Sprint 2.'}
+                    : 'Belum aktif di Sprint 1. Upload & review OCR masuk Sprint 2.'}
                 </p>
               </div>
 

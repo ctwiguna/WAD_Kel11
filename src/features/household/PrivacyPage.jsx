@@ -49,7 +49,7 @@ export default function PrivacyPage({ household, onSignOut, showToast }) {
         <ul className="flex flex-col gap-2 text-caption text-ink-700">
           <li>• Email dan cara kamu masuk (Google atau tautan email).</li>
           <li>• Transaksi yang kamu catat: nominal, tanggal, anggota, kategori, catatan.</li>
-          <li>• Label akun seperti “Tunai”, “BCA”, atau “GoPay” — sekadar teks, bukan kredensial.</li>
+          <li>• Label akun seperti “Tunai”, “BCA”, atau “GoPay”, sekadar teks, bukan kredensial.</li>
           <li>• Audit log perubahan penting (anggota, transaksi, budget).</li>
         </ul>
         <p className="mt-3 text-caption font-semibold text-ink-900">Yang tidak pernah diminta</p>
@@ -127,13 +127,13 @@ export default function PrivacyPage({ household, onSignOut, showToast }) {
       <Card className="p-4">
         <SectionHeader title="Yang belum ada di Sprint 1" />
         <div className="flex flex-wrap gap-2">
-          <StatusPill tone="neutral" icon="🗓">Upload &amp; OCR — Sprint 2</StatusPill>
-          <StatusPill tone="neutral" icon="🗓">Goals &amp; Export — Sprint 3</StatusPill>
-          <StatusPill tone="neutral" icon="🗓">Advisor — P1 (feature flag)</StatusPill>
-          <StatusPill tone="neutral" icon="🗓">Google Sheets — P2</StatusPill>
+          <StatusPill tone="neutral" icon="🗓">Upload &amp; OCR: Sprint 2</StatusPill>
+          <StatusPill tone="neutral" icon="🗓">Goals &amp; Export: Sprint 3</StatusPill>
+          <StatusPill tone="neutral" icon="🗓">Advisor: P1 (feature flag)</StatusPill>
+          <StatusPill tone="neutral" icon="🗓">Google Sheets: P2</StatusPill>
         </div>
         <p className="mt-3 text-caption text-ink-500">
-          Household aktif: <strong>{household?.name ?? '—'}</strong>. Penghapusan akun end-to-end
+          Keluarga aktif: <strong>{household?.name ?? '-'}</strong>. Penghapusan akun end-to-end
           mengikuti backend; tombol di atas membersihkan data di browser ini.
         </p>
       </Card>
@@ -142,7 +142,7 @@ export default function PrivacyPage({ household, onSignOut, showToast }) {
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         title="Hapus data?"
-        description="Semua household, transaksi, dan budget di browser ini akan dihapus."
+        description="Semua data keluarga, transaksi, dan budget di browser ini akan dihapus."
       >
         <div className="flex flex-col gap-3">
           <InlineBanner tone="warning" title="Tindakan ini tidak bisa dibatalkan">

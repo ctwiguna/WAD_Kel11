@@ -274,7 +274,7 @@ export async function createHousehold({ name, members, budget_intent }) {
   const user = requireUser(db)
   const cleanName = String(name ?? '').trim()
   if (cleanName.length < 2 || cleanName.length > 60) {
-    throw new Error('Nama household harus 2–60 karakter.')
+    throw new Error('Nama keluarga harus 2–60 karakter.')
   }
   const existing = householdFor(db, user.id)
   if (existing) return { household: existing, created: false }
@@ -397,14 +397,14 @@ export async function updateMember(householdId, memberId, patch) {
   if (patch.role !== undefined) {
     if (!patch.role) throw new Error('Peran tidak boleh kosong.')
     if (member.role === 'owner' && patch.role !== 'owner') {
-      throw new Error('Owner household tidak bisa diubah perannya.')
+      throw new Error('Owner keluarga tidak bisa diubah perannya.')
     }
     changes.role = { from: member.role, to: patch.role }
     member.role = patch.role
   }
   if (patch.status !== undefined) {
     if (member.role === 'owner' && patch.status !== 'active') {
-      throw new Error('Owner household harus tetap aktif.')
+      throw new Error('Owner keluarga harus tetap aktif.')
     }
     member.status = patch.status
     changes.status = patch.status
@@ -487,7 +487,7 @@ export async function createTransaction(householdId, payload, idempotencyKey) {
   const member = db.household_members.find(
     (m) => m.id === payload.member_id && m.household_id === householdId && m.status === 'active',
   )
-  if (!member) throw new Error('Anggota transaksi harus anggota household yang aktif.')
+  if (!member) throw new Error('Anggota transaksi harus anggota keluarga yang aktif.')
 
   let fromAccountId = null
   let toAccountId = null

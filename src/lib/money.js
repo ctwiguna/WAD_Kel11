@@ -11,7 +11,7 @@ const GROUP_SEP = '.'
 /** 1250000 -> "Rp1.250.000" (tanpa spasi, pemisah titik) */
 export function formatIDR(value) {
   const n = normalizeAmount(value)
-  if (n === null) return '—'
+  if (n === null) return '-'
   return `Rp${group(n)}`
 }
 
@@ -25,7 +25,7 @@ export function formatRawAmount(value) {
 /** Angka pendek untuk rail/summary: 1250000 -> "1,25 jt" */
 export function formatCompactIDR(value) {
   const n = normalizeAmount(value)
-  if (n === null) return '—'
+  if (n === null) return '-'
   if (n >= 1_000_000_000) return `Rp${trimZero(n / 1_000_000_000)} mdr`
   if (n >= 1_000_000) return `Rp${trimZero(n / 1_000_000)} jt`
   if (n >= 1_000) return `Rp${trimZero(n / 1_000)} rb`
@@ -80,9 +80,9 @@ const MONTHS = [
 ]
 
 export function formatDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number)
-  if (!y || !m || !d) return '—'
+  if (!y || !m || !d) return '-'
   return `${d} ${MONTHS[m - 1]} ${y}`
 }
 
@@ -94,9 +94,9 @@ export function todayISO(now = new Date()) {
 
 /** ISO timestamp -> "13 Sep 2026, 15.04" (WIB = UTC+7, tanpa DST) */
 export function formatDateTime(iso) {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
+  if (Number.isNaN(d.getTime())) return '-'
   // Geser ke WIB lalu baca bagian UTC-nya (WIB tidak memakai DST).
   const wib = new Date(d.getTime() + 7 * 60 * 60 * 1000)
   const tanggal = `${wib.getUTCDate()} ${MONTHS[wib.getUTCMonth()]} ${wib.getUTCFullYear()}`
@@ -108,7 +108,7 @@ export function formatDateTime(iso) {
 /** Label periode bulan: "September 2026" dari "2026-09" */
 export function formatPeriod(periodKey) {
   const [y, m] = String(periodKey).split('-').map(Number)
-  if (!y || !m) return '—'
+  if (!y || !m) return '-'
   const names = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',

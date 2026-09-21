@@ -46,7 +46,7 @@ export function validateTransactionForm(values, ctx = {}) {
   if (!values.member_id) {
     errors.member_id = 'Pilih anggota yang melakukan transaksi.'
   } else if (!activeMembers.some((m) => m.id === values.member_id)) {
-    errors.member_id = 'Anggota harus anggota household yang aktif.'
+    errors.member_id = 'Anggota harus anggota keluarga yang aktif.'
   }
 
   if (values.type === TXN_TYPE.TRANSFER) {

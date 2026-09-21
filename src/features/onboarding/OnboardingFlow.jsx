@@ -108,7 +108,7 @@ export default function OnboardingFlow({ onCreateHousehold, showToast }) {
         })),
         budget_intent: budget.amount ? { amount: budget.amount } : null,
       })
-      showToast('Household siap. Selamat datang di KeluargaFin!', 'success')
+      showToast('Keluarga siap. Selamat datang di KeluargaFin!', 'success')
     } catch (error) {
       setSubmitError(friendlyMessage(error))
       setSubmitState('error')
@@ -128,7 +128,7 @@ export default function OnboardingFlow({ onCreateHousehold, showToast }) {
             disabled={!overallValid}
             onClick={() => {
               if (name.trim().length < 2) {
-                setNameError('Nama household harus 2–60 karakter.')
+                setNameError('Nama keluarga harus 2–60 karakter.')
                 return
               }
               track('onboarding_step_viewed', { step: 'members' })
@@ -140,7 +140,7 @@ export default function OnboardingFlow({ onCreateHousehold, showToast }) {
         }
       >
         <Field
-          label="Nama household"
+          label="Nama keluarga"
           htmlFor="hh-name"
           required
           error={nameError}
@@ -165,7 +165,7 @@ export default function OnboardingFlow({ onCreateHousehold, showToast }) {
           <dl className="flex flex-col gap-2 text-caption">
             <div className="flex items-center justify-between">
               <dt className="text-ink-500">Mata uang</dt>
-              <dd className="font-semibold text-ink-900">IDR (Rp) — terkunci</dd>
+              <dd className="font-semibold text-ink-900">IDR (Rp), terkunci</dd>
             </div>
             <div className="flex items-center justify-between">
               <dt className="text-ink-500">Zona waktu</dt>
@@ -230,8 +230,8 @@ export default function OnboardingFlow({ onCreateHousehold, showToast }) {
                     </div>
                     {member.slot === 'anak' && (
                       <p className="mt-2 text-caption text-ink-500">
-                        Anak dibuat sebagai profil household tanpa akun login pada MVP, dan total
-                        household disembunyikan darinya sampai kamu mengizinkan.
+                        Anak dibuat sebagai profil keluarga tanpa akun login pada MVP, dan total
+                        keluarga disembunyikan darinya sampai kamu mengizinkan.
                       </p>
                     )}
                   </div>
@@ -249,7 +249,7 @@ export default function OnboardingFlow({ onCreateHousehold, showToast }) {
                     }
                   />
                   Sertakan profil ini
-                  {member.slot === 'ayah' && ' (kamu sendiri — wajib)'}
+                  {member.slot === 'ayah' && ' (kamu sendiri, wajib)'}
                 </label>
               </Card>
             </li>
@@ -270,7 +270,7 @@ export default function OnboardingFlow({ onCreateHousehold, showToast }) {
         step={5}
         onBack={() => setStep(4)}
         title="Pasang budget bulan ini?"
-        subtitle="Opsional. Bisa diisi nanti — Dashboard tetap bisa dipakai tanpa budget."
+        subtitle="Opsional. Bisa diisi nanti. Dashboard tetap bisa dipakai tanpa budget."
         footer={
           <>
             <Button
@@ -426,7 +426,7 @@ export default function OnboardingFlow({ onCreateHousehold, showToast }) {
     <StepFrame
       step={5}
       title="Menyiapkan workspace…"
-      subtitle="Sebentar ya, kami menyimpan household dan anggotanya."
+      subtitle="Sebentar ya, kami menyimpan keluarga dan anggotanya."
       footer={
         submitState === 'error' ? (
           <Button size="lg" onClick={submit} loading={submitState === 'pending'}>
@@ -441,12 +441,12 @@ export default function OnboardingFlow({ onCreateHousehold, showToast }) {
     >
       {submitState === 'error' && submitError && (
         <InlineBanner tone="danger" title="Belum berhasil menyimpan">
-          {submitError} Datamu tidak hilang — coba lagi tanpa mengulang isian.
+          {submitError} Datamu tidak hilang, coba lagi tanpa mengulang isian.
         </InlineBanner>
       )}
       <TrustCallout variant="compact">{TRUST_COPY.retention}</TrustCallout>
       <p className="text-caption text-ink-500">
-        Household dibuat dengan role <strong>{MEMBER_ROLE.OWNER}</strong> untukmu.
+        Keluarga dibuat dengan role <strong>{MEMBER_ROLE.OWNER}</strong> untukmu.
       </p>
     </StepFrame>
   )
