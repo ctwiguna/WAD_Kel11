@@ -84,7 +84,7 @@ function HeroAnswerCard({ data, memberFilter, memberName, onRetry, isError, erro
       <div className="mt-3 flex flex-wrap gap-2">
         {memberFilter !== 'all' && (
           <StatusPill tone="info" icon="⛃">
-            Difilter: {memberName} — angka di atas tetap household
+            Difilter: {memberName}, angka di atas tetap total keluarga
           </StatusPill>
         )}
         <StatusPill tone="neutral" icon="✓">
@@ -266,7 +266,7 @@ export default function DashboardPage({ household }) {
             <Card className="p-5">
               <h2 className="text-h2 font-semibold">Mulai catat</h2>
               <p className="mt-1 text-caption text-ink-500">
-                Belum ada transaksi — mulai dari yang paling gampang. Nggak harus rapi dari awal.
+                Belum ada transaksi. Mulai dari yang paling gampang. Nggak harus rapi dari awal.
               </p>
               <div className="mt-4">
                 <CoreActions />

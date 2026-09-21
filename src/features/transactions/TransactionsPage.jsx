@@ -144,7 +144,7 @@ export default function TransactionsPage({ household, onRefreshHousehold, showTo
           actions={<Button onClick={openForm}>Catat transaksi</Button>}
         >
           {all.length === 0
-            ? 'Mulai dari satu pengeluaran kecil hari ini — cukup untuk membuat dashboard berguna.'
+            ? 'Mulai dari satu pengeluaran kecil hari ini, cukup untuk membuat dashboard berguna.'
             : 'Coba ganti filter anggota atau jenis transaksi.'}
         </EmptyState>
       )}

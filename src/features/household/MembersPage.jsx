@@ -11,9 +11,9 @@ import {
 
 /** Matriks visibilitas per peran. */
 const VISIBILITY = [
-  { label: 'Total household & budget', owner: true, co: true, child: false },
+  { label: 'Total keluarga & budget', owner: true, co: true, child: false },
   { label: 'Catat transaksi', owner: true, co: true, child: 'own' },
-  { label: 'Budget & goal household', owner: true, co: true, child: false },
+  { label: 'Budget & goal keluarga', owner: true, co: true, child: false },
   { label: 'Kelola anggota (invite/revoke)', owner: true, co: false, child: false },
   { label: 'Export laporan', owner: true, co: true, child: false },
 ]
@@ -145,7 +145,7 @@ export default function MembersPage({ household, role, onRefreshHousehold, showT
       {!isOwner && (
         <InlineBanner tone="info" title="Aksesmu berubah">
           Hanya owner yang bisa mengubah peran dan mencabut akses. Punya pertanyaan? Hubungi owner
-          household.
+          keluarga.
         </InlineBanner>
       )}
 
@@ -157,7 +157,7 @@ export default function MembersPage({ household, role, onRefreshHousehold, showT
         <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
           <table className="w-full text-caption">
             <caption className="sr-only">
-              Matriks visibilitas data per peran anggota household
+              Matriks visibilitas data per peran anggota keluarga
             </caption>
             <thead className="bg-canvas text-left text-micro uppercase text-ink-500">
               <tr>
@@ -182,12 +182,12 @@ export default function MembersPage({ household, role, onRefreshHousehold, showT
           </table>
         </div>
         <p className="mt-2 text-micro text-ink-500">
-          Anak default tidak melihat total household. Owner dapat mengizinkan nanti di P1.
+          Anak default tidak melihat total keluarga. Owner dapat mengizinkan nanti di P1.
         </p>
       </div>
 
-      <InlineBanner tone="info" title="Invite one-time link — menyusul">
-        Sprint 1 membuat profil anggota di dalam household. Undangan lewat tautan one-time
+      <InlineBanner tone="info" title="Invite one-time link, menyusul">
+        Sprint 1 membuat profil anggota di dalam keluarga. Undangan lewat tautan one-time
         masuk bersama Google Sheets di P1.
       </InlineBanner>
 
@@ -195,7 +195,7 @@ export default function MembersPage({ household, role, onRefreshHousehold, showT
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         title="Tambah profil anggota"
-        description="Profil tanpa login — tidak butuh email atau kredensial apa pun."
+        description="Profil tanpa login, tidak butuh email atau kredensial apa pun."
         footer={
           <div className="pt-1">
             <Button size="lg" onClick={handleAddMember} loading={pending} disabled={pending}>

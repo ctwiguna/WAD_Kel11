@@ -24,7 +24,7 @@ function AvatarStack({ members }) {
   const shown = members.slice(0, 3)
   const rest = members.length - shown.length
   return (
-    <div className="flex items-center" aria-label={`${members.length} anggota household`}>
+    <div className="flex items-center" aria-label={`${members.length} anggota keluarga`}>
       {shown.map((m, i) => (
         <span key={m.id} className={cx(i > 0 && '-ml-2')}>
           <span className="inline-block rounded-full ring-2 ring-surface">
@@ -115,7 +115,7 @@ export function AppShell({ household, children }) {
             <Link
               to="/app/settings/members"
               className="min-h-11 rounded-xl px-1"
-              aria-label="Kelola anggota household"
+              aria-label="Kelola anggota keluarga"
             >
               <AvatarStack members={members} />
             </Link>
@@ -202,7 +202,7 @@ export function AppShell({ household, children }) {
       <BottomSheet
         open={uploadNotice}
         onClose={() => setUploadNotice(false)}
-        title="Upload & OCR — Sprint 2"
+        title="Upload & OCR: Sprint 2"
         description="Kontraknya sudah dipatok, implementasinya menyusul."
       >
         <div className="flex flex-col gap-3">

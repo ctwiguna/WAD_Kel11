@@ -22,12 +22,12 @@ export default function LandingPage() {
           </h1>
           <p className="text-body text-ink-500">
             Catat pengeluaran semudah mengirim bukti pembayaran, lihat siapa memakai uang untuk apa,
-            lalu putuskan bersama — Ayah, Ibu, dan Anak dalam satu workspace.
+            lalu putuskan bersama, Ayah, Ibu, dan Anak dalam satu workspace.
           </p>
         </div>
 
         <ul className="flex flex-col gap-2 text-caption text-ink-700">
-          <li>✓ Satu household, tiga profil: Ayah, Ibu, Anak</li>
+          <li>✓ Satu keluarga, tiga profil: Ayah, Ibu, Anak</li>
           <li>✓ Tanpa menghubungkan rekening bank</li>
           <li>✓ Semua angka yang kamu lihat bisa diverifikasi ke transaksinya</li>
         </ul>
@@ -35,7 +35,7 @@ export default function LandingPage() {
         <Card className="p-4">
           <h2 className="text-h2 font-semibold">Bulan ini keluarga kita aman?</h2>
           <p className="mt-1 text-caption text-ink-500">
-            Pertanyaan pertama yang dijawab Beranda — bukan saldo akun pribadi.
+            Pertanyaan pertama yang dijawab Beranda, bukan saldo akun pribadi.
           </p>
           <div className="mt-3 flex items-baseline justify-between rounded-xl bg-canvas px-3 py-2">
             <span className="text-caption text-ink-500">Sisa budget bulan ini</span>
@@ -48,7 +48,7 @@ export default function LandingPage() {
 
       <footer className="safe-bottom flex flex-col gap-2">
         <Link to="/masuk" className={buttonClasses({ size: 'lg' })}>
-          Buat household
+          Buat keluarga
         </Link>
         <Link to="/masuk" className={buttonClasses({ size: 'lg', variant: 'ghost' })}>
           Masuk

@@ -109,7 +109,7 @@ export default function BudgetPage({ household, showToast }) {
         <EmptyState
           icon="🎯"
           title="Belum ada budget bulan ini"
-          actions={<Button onClick={openSheet}>Buat budget household</Button>}
+          actions={<Button onClick={openSheet}>Buat budget keluarga</Button>}
         >
           Budget membuat Beranda bisa menjawab “bulan ini keluarga kita aman?”. Bisa dimulai dari
           nominal kasar.
@@ -148,7 +148,7 @@ export default function BudgetPage({ household, showToast }) {
             />
             {categoryBudgets.length === 0 ? (
               <p className="text-caption text-ink-500">
-                Belum ada budget per kategori. Semua pengeluaran masih dihitung ke budget household.
+                Belum ada budget per kategori. Semua pengeluaran masih dihitung ke budget keluarga.
               </p>
             ) : (
               <ul className="flex flex-col gap-3">
@@ -226,7 +226,7 @@ export default function BudgetPage({ household, showToast }) {
             <legend className="text-label font-semibold text-ink-900">Berlaku untuk</legend>
             <div className="mt-1.5 flex flex-wrap gap-2">
               <Chip selected={form.category_id === null} onClick={() => setForm((f) => ({ ...f, category_id: null }))}>
-                Seluruh household
+                Seluruh keluarga
               </Chip>
               {categories
                 .filter((c) => !c.archived_at && c.kind === 'expense')
