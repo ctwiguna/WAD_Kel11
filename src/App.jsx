@@ -1,34 +1,23 @@
 /**
- * App — pemilik state utama: sesi, household aktif, dan toast.
- * State dibagikan lewat props (bukan Context) supaya alurnya mudah diikuti.
+ * App — pemilik state utama: household aktif dan toast.
+ * Tanpa layar auth/onboarding: aplikasi langsung membuka Beranda
+ * dengan keluarga demo (dibuat otomatis saat aplikasi dimuat).
  */
 import { useEffect, useState } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell.jsx'
 import { FullPageError, Toast } from './components/ui/feedback.jsx'
 import { Button, Spinner } from './components/ui/primitives.jsx'
-import LandingPage from './features/auth/LandingPage.jsx'
-import LoginPage from './features/auth/LoginPage.jsx'
-import OnboardingFlow from './features/onboarding/OnboardingFlow.jsx'
 import DashboardPage from './features/dashboard/DashboardPage.jsx'
 import TransactionsPage from './features/transactions/TransactionsPage.jsx'
 import BudgetPage from './features/budget/BudgetPage.jsx'
 import MembersPage from './features/household/MembersPage.jsx'
 import PrivacyPage from './features/household/PrivacyPage.jsx'
 import { GoalsPage, ReportPage } from './features/placeholder/ComingSoon.jsx'
-import {
-  consumeMagicLink,
-  createHousehold,
-  getHousehold,
-  getMe,
-  requestMagicLink,
-  signInWithGoogle,
-  signOut,
-} from './API/getData.js'
+import { ensureDemoHousehold, getHousehold } from './API/getData.js'
 
 export default function App() {
-  const [status, setStatus] = useState('loading') // loading | login | onboarding | ready | error
-  const [user, setUser] = useState(null)
+  const [status, setStatus] = useState('loading') // loading | ready | error
   const [household, setHousehold] = useState(null)
   const [role, setRole] = useState(null)
   const [toast, setToast] = useState(null)
@@ -38,26 +27,14 @@ export default function App() {
     boot()
   }, [])
 
-  /** Cek sesi saat aplikasi dibuka. */
+  /** Siapkan keluarga demo lalu buka Beranda. */
   async function boot() {
     setStatus('loading')
     setBootError(null)
     try {
-      const me = await getMe()
-      if (!me) {
-        setUser(null)
-        setHousehold(null)
-        setStatus('login')
-        return
-      }
-      setUser(me.user)
-      if (me.household) {
-        await loadHousehold(me.household.id)
-        setStatus('ready')
-      } else {
-        setHousehold(null)
-        setStatus('onboarding')
-      }
+      const { household: active } = await ensureDemoHousehold()
+      await loadHousehold(active.id)
+      setStatus('ready')
     } catch (error) {
       setBootError(error)
       setStatus('error')
@@ -85,41 +62,6 @@ export default function App() {
     setToast(null)
   }
 
-  /** Setelah login: ada household -> masuk app; belum ada -> onboarding. */
-  async function applySession(session) {
-    setUser(session.user)
-    if (session.household) {
-      await loadHousehold(session.household.id)
-      setStatus('ready')
-    } else {
-      setStatus('onboarding')
-    }
-    return session
-  }
-
-  async function handleSignInWithGoogle() {
-    return applySession(await signInWithGoogle())
-  }
-
-  async function handleConsumeMagicLink(token) {
-    return applySession(await consumeMagicLink(token))
-  }
-
-  async function handleCreateHousehold(payload) {
-    const result = await createHousehold(payload)
-    if (result.household?.id) await loadHousehold(result.household.id)
-    setStatus('ready')
-    return result
-  }
-
-  async function handleSignOut() {
-    await signOut()
-    setUser(null)
-    setHousehold(null)
-    setRole(null)
-    setStatus('login')
-  }
-
   async function refreshHousehold() {
     if (!household?.id) return null
     return loadHousehold(household.id)
@@ -144,36 +86,18 @@ export default function App() {
     )
   }
 
-  if (status === 'onboarding') {
-    return (
-      <OnboardingFlow onCreateHousehold={handleCreateHousehold} showToast={showToast} />
-    )
-  }
-
-  if (status === 'login') {
-    return (
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route
-          path="/masuk"
-          element={
-            <LoginPage
-              onSignInWithGoogle={handleSignInWithGoogle}
-              onRequestMagicLink={requestMagicLink}
-              onConsumeMagicLink={handleConsumeMagicLink}
-              showToast={showToast}
-            />
-          }
-        />
-        <Route path="*" element={<LandingPage />} />
-      </Routes>
-    )
-  }
-
   /* status === 'ready' */
   return (
     <>
       <Routes>
+        <Route
+          path="/"
+          element={
+            <AppShell household={household}>
+              <DashboardPage household={household} />
+            </AppShell>
+          }
+        />
         <Route
           path="/app"
           element={
@@ -235,15 +159,11 @@ export default function App() {
           path="/app/settings/privacy"
           element={
             <AppShell household={household}>
-              <PrivacyPage
-                household={household}
-                onSignOut={handleSignOut}
-                showToast={showToast}
-              />
+              <PrivacyPage household={household} showToast={showToast} />
             </AppShell>
           }
         />
-        {/* Alamat lain di dalam /app diarahkan ke Beranda */}
+        {/* Alamat lain diarahkan ke Beranda */}
         <Route
           path="*"
           element={

@@ -10,7 +10,7 @@
  * - hanya transaksi approved yang masuk agregat
  * - tidak ada kredensial bank di mana pun
  */
-import { CURRENCY, DEFAULT_CATEGORIES, MEMBER_STATUS, TIMEZONE, TXN_TYPE } from '../lib/domain.js'
+import { CURRENCY, DEFAULT_CATEGORIES, DEFAULT_MEMBER_SLOTS, MEMBER_STATUS, TIMEZONE, TXN_TYPE } from '../lib/domain.js'
 import { buildDashboardPayload, currentMonthKey } from '../lib/aggregate.js'
 import { normalizeAmount, todayISO } from '../lib/money.js'
 
@@ -213,6 +213,62 @@ export async function getMe() {
     user: { id: user.id, email: user.email },
     household: household ? { id: household.id, name: household.name } : null,
   }
+}
+
+/**
+ * Mode tanpa auth: pastikan keluarga demo selalu ada supaya Beranda bisa
+ * dibuka langsung. Dipanggil sekali saat aplikasi dimuat.
+ */
+export async function ensureDemoHousehold() {
+  await delay(150)
+  const db = load()
+  let user = db.session
+    ? db.users.find((u) => u.id === db.session.user_id && !u.deleted_at)
+    : null
+  if (!user) {
+    user = findOrCreateUser(db, 'keluarga@demo.local', 'demo')
+    db.session = { token: newId('tok'), user_id: user.id, created_at: nowISO() }
+  }
+
+  let household = householdFor(db, user.id)
+  if (!household) {
+    household = {
+      id: newId('hh'),
+      name: 'Keluarga Kami',
+      currency: CURRENCY,
+      timezone: TIMEZONE,
+      owner_user_id: user.id,
+      created_at: nowISO(),
+    }
+    db.households.push(household)
+
+    const created = DEFAULT_MEMBER_SLOTS.map((slot, index) => {
+      const member = {
+        id: newId('hm'),
+        household_id: household.id,
+        // Profil pertama ditautkan ke pemilik; sisanya profil tanpa login.
+        user_id: index === 0 ? user.id : null,
+        display_name: slot.display_name,
+        role: slot.role,
+        slot: slot.slot,
+        status: MEMBER_STATUS.ACTIVE,
+        created_by: user.id,
+        created_at: nowISO(),
+      }
+      db.household_members.push(member)
+      return member
+    })
+
+    seedCategories(db, household.id)
+    created.forEach((member) => addAccount(db, household.id, member.id, 'Tunai', 'cash'))
+    addAudit(db, household.id, user.id, 'household_created', 'household', household.id, {
+      name: household.name,
+      source: 'demo_bootstrap',
+    })
+  }
+
+  save(db)
+  return { user: { id: user.id, email: user.email }, household }
 }
 
 export async function signInWithGoogle() {
