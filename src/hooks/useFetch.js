@@ -1,34 +1,41 @@
-// Materi: useFetch → tabel "aturan custom hook"
-// 1. Nama diawali "use"                 ✅ useFetch
-// 2. Memanggil hook bawaan              ✅ useState, useEffect
-// 3. Tidak return JSX                   ✅ return { data, loading, error, refetch }
-// 4. Hindari duplikasi logic            ✅ semua halaman pakai hook ini
 
-import { useState, useEffect } from "react";
-import { getData } from "../API/getData";
+import { useState, useEffect } from 'react';
+import { track } from '../utils/analytics';
 
-export function useFetch(resource, params, deps = []) {
+export function useFetch(fetchFn, deps = []) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [trigger, setTrigger] = useState(0);
+
+  // refetch() → panggil ini untuk fetch ulang tanpa reload halaman
+  const refetch = () => setTrigger(t => t + 1);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getData(resource, params)
-      .then((res) => { if (!cancelled) setData(res); })
-      .catch((e) => { if (!cancelled) setError(e.message); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [resource, JSON.stringify(params), ...deps]);
+    let cancelled = false; // hindari state update setelah komponen unmount
 
-  const refetch = () => {
     setLoading(true);
-    getData(resource, params)
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  };
+    setError(null);
+
+    fetchFn()
+      .then(result => {
+        if (cancelled) return;
+        setData(result);
+        track('useFetch:success', { count: Array.isArray(result) ? result.length : 1 });
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setError(err.message ?? 'Terjadi kesalahan');
+        track('useFetch:error', { message: err.message });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    // cleanup: batalkan jika deps berubah sebelum fetch selesai
+    return () => { cancelled = true; };
+
+  }, [...deps, trigger]); // trigger memicu refetch manual
 
   return { data, loading, error, refetch };
 }

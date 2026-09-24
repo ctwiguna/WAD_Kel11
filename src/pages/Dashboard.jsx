@@ -1,77 +1,187 @@
-import { useMemo } from "react";
-import { useFetch } from "../hooks/useFetch";
+// Alur data: Dashboard (luar fetch) → getTransactions/getBudgets → localStorage → tampilan
 
-export default function Dashboard({ session, household }) {
-  const { data: txs, loading } = useFetch("transactions", {});
-  const { data: categories } = useFetch("categories", {});
+import { useFetch } from '../hooks/useFetch';
+import { getTransactions, getBudgets } from '../API/getData';
+import { track } from '../utils/analytics';
+import Card from '../components/Card';
+import { formatRupiah, formatDate } from '../data/mockData';
 
-  const stats = useMemo(() => {
-    if (!txs) return { income: 0, expense: 0, net: 0, byMember: {} };
-    const income = txs.filter((t) => t.type === "income").reduce((a, b) => a + b.amount, 0);
-    const expense = txs.filter((t) => t.type === "expense").reduce((a, b) => a + b.amount, 0);
-    const byMember = {};
-    txs.filter((t) => t.type === "expense").forEach((t) => { byMember[t.memberId] = (byMember[t.memberId] || 0) + t.amount; });
-    return { income, expense, net: income - expense, byMember };
-  }, [txs]);
+const categoryIconMap = {
+  'Makanan & Minuman': '🍽️', 'Transportasi': '🚗', 'Pendidikan': '📚',
+  'Tagihan & Utilitas': '💡', 'Kesehatan': '💊', 'Belanja': '🛍️',
+  'Hiburan': '🎬', 'Lainnya': '📦',
+};
 
-  const fmt = (n) => "Rp " + n.toLocaleString("id-ID");
-  const recentTxs = [...(txs || [])].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+function StatCard({ label, amount, sub, color }) {
+  return (
+    <Card padding="p-6">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">{label}</p>
+      <p className="text-2xl font-bold tracking-tight" style={{ color }}>
+        {formatRupiah(Math.abs(amount))}
+      </p>
+      <p className="text-xs text-slate-400 mt-1">{sub}</p>
+    </Card>
+  );
+}
 
-  if (loading) return <div className="p-10 text-center text-kf-muted">Memuat...</div>;
+export default function Dashboard() {
+  // useFetch → isi alur deps/refetch
+  const { data: transactions, loading: loadTxn, error: errTxn } = useFetch(getTransactions);
+  const { data: budgets, loading: loadBudget } = useFetch(getBudgets);
+
+  track('Dashboard:render');
+
+  // Loading state — ternary
+  if (loadTxn || loadBudget) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-slate-400">Memuat data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state — ternary
+  if (errTxn) {
+    return (
+      <Card>
+        <p className="text-red-500 text-sm">⚠️ Gagal memuat data: {errTxn}</p>
+      </Card>
+    );
+  }
+
+  const txns = transactions ?? [];
+  const bdgs = budgets ?? [];
+
+  const totalIncome  = txns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+  const totalExpense = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const netFlow      = totalIncome - totalExpense;
+
+  // map → kategori teratas
+  const categoryTotals = bdgs
+    .map(b => ({ ...b, pct: Math.round((b.spent / b.limit) * 100) }))
+    .sort((a, b) => b.spent - a.spent)
+    .slice(0, 4);
+
+  // map → transaksi terbaru
+  const recentTxns = [...txns]
+    .filter(t => t.type !== 'transfer')
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 6);
 
   return (
-    <div className="min-h-screen bg-kf-bg pb-24">
-      <div className="px-5 pt-6 pb-4"><h1 className="text-2xl font-bold text-kf-text">keluargafin</h1></div>
-
-      <div className="mx-5 bg-[#F4D0C4] rounded-2xl p-6 mb-6">
-        <p className="text-sm text-kf-muted mb-2">SALDO BULAN INI</p>
-        <h2 className="text-3xl font-bold text-kf-text mb-4">{fmt(stats.net)}</h2>
-        <div className="flex gap-4">
-          <div><p className="text-xs text-kf-muted">Pemasukan</p><p className="text-lg font-semibold text-green-600">+{fmt(stats.income)}</p></div>
-          <div className="border-l border-gray-300 pl-4"><p className="text-xs text-kf-muted">Pengeluaran</p><p className="text-lg font-semibold text-red-600">-{fmt(stats.expense)}</p></div>
-        </div>
+    <div className="space-y-8">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Januari 2024</p>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Ringkasan Bulan Ini</h1>
       </div>
 
-      <div className="mx-5 bg-white rounded-2xl p-5 shadow-kf mb-6">
-        <h3 className="text-xs font-semibold text-kf-muted mb-4">ANGGOTA KELUARGA</h3>
-        {household?.members.map((m, i) => (
-          <div key={m.id} className="flex items-center justify-between mb-3 last:mb-0">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-kf-text ${i === 0 ? 'bg-avatar-ayah' : i === 1 ? 'bg-avatar-ibu' : 'bg-avatar-anak'}`}>
-                {m.name.charAt(0)}
-              </div>
-              <p className="font-medium text-kf-text">{m.name}</p>
+      {/* StatCards — props */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <StatCard label="Total Pemasukan" amount={totalIncome}  sub="Bulan Januari" color="#10B981" />
+        <StatCard label="Total Pengeluaran" amount={totalExpense} sub="Bulan Januari" color="#EF4444" />
+        <StatCard
+          label="Arus Kas Bersih"
+          amount={netFlow}
+          sub={netFlow >= 0 ? 'Surplus bulan ini' : 'Defisit bulan ini'}
+          color={netFlow >= 0 ? '#0F172A' : '#EF4444'}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Kategori teratas — map */}
+        <Card className="lg:col-span-2">
+          <h2 className="font-bold text-slate-900 mb-5">Kategori Teratas</h2>
+          {categoryTotals.length === 0 ? (
+            // ternary → empty state
+            <p className="text-sm text-slate-400">Belum ada data anggaran.</p>
+          ) : (
+            <div className="space-y-4">
+              {categoryTotals.map((cat) => (
+                <div key={cat.category}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{cat.icon}</span>
+                      <span className="text-sm font-medium text-slate-700 truncate max-w-[120px]">{cat.category}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-900">{formatRupiah(cat.spent)}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(cat.pct, 100)}%`,
+                        // ternary → warna bar berdasarkan status
+                        backgroundColor: cat.pct >= 90 ? '#EF4444' : cat.pct >= 75 ? '#F59E0B' : cat.color,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1">{cat.pct}% dari {formatRupiah(cat.limit)}</p>
+                </div>
+              ))}
             </div>
-            <p className="font-semibold text-kf-text">{fmt(stats.byMember[m.id] || 0)}</p>
+          )}
+        </Card>
+
+        {/* Transaksi terbaru — map */}
+        <Card className="lg:col-span-3">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="font-bold text-slate-900">Transaksi Terbaru</h2>
           </div>
-        ))}
+          {/* ternary → empty state */}
+          {recentTxns.length === 0 ? (
+            <p className="text-sm text-slate-400 py-8 text-center">Belum ada transaksi.</p>
+          ) : (
+            <div className="space-y-3">
+              {recentTxns.map((txn) => (
+                <div key={txn.id} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0"
+                    style={{ backgroundColor: txn.type === 'income' ? '#D1FAE5' : '#FEF2F2' }}
+                  >
+                    {txn.type === 'income' ? '💰' : (categoryIconMap[txn.category] ?? '📦')}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{txn.merchant}</p>
+                    <p className="text-xs text-slate-400">{txn.member} · {formatDate(txn.date)}</p>
+                  </div>
+                  <p className="text-sm font-semibold shrink-0" style={{ color: txn.type === 'income' ? '#10B981' : '#EF4444' }}>
+                    {txn.type === 'income' ? '+' : '-'}{formatRupiah(txn.amount)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
 
-      <div className="mx-5 bg-white rounded-2xl p-5 shadow-kf">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xs font-semibold text-kf-muted">TRANSAKSI TERBARU</h3>
-        </div>
-        {recentTxs.map((tx) => {
-          const cat = categories?.find((c) => c.id === tx.categoryId);
-          const member = household?.members.find((m) => m.id === tx.memberId);
-          return (
-            <div key={tx.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${tx.categoryId === 'c_makan' ? 'bg-cat-makan' : 'bg-cat-lain'}`}>
-                  {cat?.icon || "📦"}
-                </div>
+      {/* Pengeluaran per anggota — map */}
+      <Card>
+        <h2 className="font-bold text-slate-900 mb-5">Pengeluaran per Anggota</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {[
+            { name: 'Ayah', avatar: '👨', color: '#3B82F6' },
+            { name: 'Ibu',  avatar: '👩', color: '#EC4899' },
+            { name: 'Anak', avatar: '🧒', color: '#8B5CF6' },
+          ].map(({ name, avatar, color }) => {
+            const spent = txns
+              .filter(t => t.member === name && t.type === 'expense')
+              .reduce((s, t) => s + t.amount, 0);
+            return (
+              <div key={name} className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-slate-50 shrink-0">{avatar}</div>
                 <div>
-                  <p className="font-semibold text-kf-text text-sm">{tx.merchant || cat?.name}</p>
-                  <p className="text-xs text-kf-muted">{member?.name} · {tx.date}</p>
+                  <p className="font-semibold text-slate-900">{name}</p>
+                  <p className="text-sm font-bold" style={{ color }}>{formatRupiah(spent)}</p>
+                  <p className="text-xs text-slate-400">Pengeluaran bulan ini</p>
                 </div>
               </div>
-              <p className={`font-bold text-sm ${tx.type === 'income' ? 'text-green-600' : 'text-kf-text'}`}>
-                {tx.type === 'income' ? '+' : '-'}{fmt(tx.amount)}
-              </p>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </Card>
     </div>
   );
 }
