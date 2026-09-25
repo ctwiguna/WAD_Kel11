@@ -1,8 +1,9 @@
 // App.jsx → shell utama, kirim props ke semua halaman
 
 import { useState } from 'react';
+import QuickAdd from './components/QuickAdd';
 import { track } from './utils/analytics';
-import QAPanel from './components/QaPanel';
+import QAPanel from './components/QAPanel';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
@@ -39,9 +40,10 @@ const pages = {
 };
 
 export default function App() {
-  const [authed, setAuthed]       = useState(false);
-  const [page, setPage]           = useState('dashboard');
+  const [authed, setAuthed]           = useState(false);
+  const [page, setPage]               = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [user] = useState(defaultUser); // props → dikirim ke halaman
 
   const handleLogin = () => {
@@ -152,9 +154,31 @@ export default function App() {
           <PageComponent user={user} />
         </main>
 
-        {/* Bottom nav mobile — map navItems */}
-        <nav className="lg:hidden flex border-t border-slate-100 bg-white sticky bottom-0 z-30">
-          {navItems.slice(0, 5).map((item) => (
+        {/* Bottom nav mobile — 2 item | FAB + | 2 item */}
+        <nav className="lg:hidden flex items-center border-t border-slate-100 bg-white sticky bottom-0 z-30">
+          {/* 2 item kiri */}
+          {navItems.slice(0, 2).map((item) => (
+            <button key={item.id} onClick={() => handleNavigate(item.id)}
+              className="flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors"
+              style={{ color: page === item.id ? '#0F172A' : '#94A3B8' }}>
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </button>
+          ))}
+
+          {/* FAB tengah — tombol + catat cepat */}
+          <div className="flex-1 flex justify-center">
+            <button
+              onClick={() => { track('App:quickAdd'); setQuickAddOpen(true); }}
+              className="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl font-light shadow-lg -mt-5 transition-transform active:scale-95"
+              style={{ backgroundColor: '#0F172A', boxShadow: 'rgba(15,23,42,0.35) 0px 8px 24px -4px' }}
+            >
+              +
+            </button>
+          </div>
+
+          {/* 2 item kanan */}
+          {navItems.slice(2, 4).map((item) => (
             <button key={item.id} onClick={() => handleNavigate(item.id)}
               className="flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors"
               style={{ color: page === item.id ? '#0F172A' : '#94A3B8' }}>
@@ -164,6 +188,9 @@ export default function App() {
           ))}
         </nav>
       </div>
+
+      {/* Quick Add Modal */}
+      {quickAddOpen && <QuickAdd onClose={() => setQuickAddOpen(false)} onNavigate={handleNavigate} />}
 
       {/* QA Panel — muncul di pojok bawah (development only) */}
       <QAPanel />
