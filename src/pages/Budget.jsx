@@ -132,7 +132,7 @@ export default function Budget() {
                     style={{ backgroundColor: badgeBg, color: badgeColor }}>
                     {pct}%
                   </span>
-                  <Button variant="ghost" className="!px-2 !py-1 text-xs" onClick={() => openEdit(b)}>
+                  <Button variant="ghost" className="px-2! py-1! text-xs" onClick={() => openEdit(b)}>
                     Edit
                   </Button>
                 </div>

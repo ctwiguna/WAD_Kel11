@@ -102,7 +102,7 @@ export default function Dashboard() {
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-base">{cat.icon}</span>
-                      <span className="text-sm font-medium text-slate-700 truncate max-w-[120px]">{cat.category}</span>
+                      <span className="text-sm font-medium text-slate-700 truncate max-w-120px">{cat.category}</span>
                     </div>
                     <span className="text-sm font-semibold text-slate-900">{formatRupiah(cat.spent)}</span>
                   </div>
