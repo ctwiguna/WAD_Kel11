@@ -1,194 +1,238 @@
-// Alur data: Budget (luar fetch) → getBudgets + getTransactions → localStorage → tampilan
-// spent dihitung OTOMATIS dari transaksi, bukan dari data statis
+// Alur data: Budget → getBudgets + getTransactions → localStorage → tampilan
 
 import { useState } from 'react';
 import { useFetch } from '../hooks/useFetch';
-import { getBudgets, getTransactions, putBudget } from '../API/getData';
+import { getBudgets, getTransactions, putBudget, getCategories } from '../API/getData';
+import { save, load } from '../utils/localStorage';
 import { track } from '../utils/analytics';
-import { categories, formatRupiah } from '../data/mockData';
+import { useToast } from '../context/ToastContext';
+import { formatRupiah } from '../data/mockData';
 import Card from '../components/Card';
 import Button from '../components/Button';
 
-function hitungSpentPerKategori(transactions) {
-  const result = {};
-  transactions
-    .filter(t => t.type === 'expense')
-    .forEach(t => {
-      result[t.category] = (result[t.category] ?? 0) + t.amount;
-    });
-  return result;
+// hitung spent per kategori dari transaksi nyata
+function hitungSpentPerKategori(txns) {
+  const map = {};
+  txns.filter(t => t.type === 'expense' && t.status !== 'dibatalkan').forEach(t => {
+    map[t.category] = (map[t.category] ?? 0) + t.amount;
+  });
+  return map;
 }
 
 export default function Budget() {
-  const [showForm, setShowForm] = useState(false);
-  const [editCategory, setEditCategory] = useState(null);
-  const [form, setForm] = useState({ category: categories[0].name, limit: '' });
+  const { showToast } = useToast();
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [newLimit, setNewLimit]               = useState('');
+  const [saving, setSaving]                   = useState(false);
+  const [showAddForm, setShowAddForm]         = useState(false);
+  const [addForm, setAddForm]                 = useState({ category: '', limit: '' });
 
-  const { data: budgets, loading: loadB, error: errB, refetch: refetchB } = useFetch(getBudgets);
-  const { data: transactions, loading: loadT, error: errT } = useFetch(getTransactions);
+  const { data: budgets,      loading: loadBdg, refetch: refetchBdg } = useFetch(getBudgets);
+  const { data: transactions, loading: loadTxn }                       = useFetch(getTransactions);
+  const { data: categoriesData }                                        = useFetch(getCategories);
 
   track('Budget:render');
 
-  if (loadB || loadT) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-    </div>
-  );
+  if (loadBdg || loadTxn) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
-  if (errB || errT) return <Card><p className="text-red-500 text-sm">⚠️ {errB ?? errT}</p></Card>;
-
-  const bdgs = budgets ?? [];
+  const bdgs = budgets      ?? [];
   const txns = transactions ?? [];
+  const allCats = (categoriesData ?? []).filter(c => !c.archived);
 
-  const spentMap = hitungSpentPerKategori(txns);
+  // kategori yang belum punya anggaran
+  const usedCategories = new Set(bdgs.map(b => b.category));
+  const availableCats  = allCats.filter(c => !usedCategories.has(c.name));
 
-  const bdgsWithSpent = bdgs.map(b => ({
-    ...b,
-    spent: spentMap[b.category] ?? 0,
-  }));
+  // spent dihitung dari transaksi, bukan dari data budget statis
+  const spentMap      = hitungSpentPerKategori(txns);
+  const bdgsWithSpent = bdgs.map(b => ({ ...b, spent: spentMap[b.category] ?? 0 }));
 
-  const totalBudget = bdgsWithSpent.reduce((s, b) => s + b.limit, 0);
-  const totalSpent  = bdgsWithSpent.reduce((s, b) => s + b.spent, 0);
-  const overBudget  = bdgsWithSpent.filter(b => b.spent > b.limit);
+  const totalLimit = bdgsWithSpent.reduce((s, b) => s + b.limit, 0);
+  const totalSpent = bdgsWithSpent.reduce((s, b) => s + b.spent, 0);
+  const totalPct   = totalLimit > 0 ? Math.round((totalSpent / totalLimit) * 100) : 0;
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    const limitVal = parseInt(form.limit.replace(/\D/g, ''), 10) || 0;
-    track('Budget:save', { category: editCategory ?? form.category, limit: limitVal });
-    await putBudget(editCategory ?? form.category, limitVal);
-    refetchB();
-    setShowForm(false);
-    setEditCategory(null);
-    setForm({ category: categories[0].name, limit: '' });
+  const handleAddBudget = () => {
+    const limit = parseInt(addForm.limit.replace(/\D/g, ''), 10);
+    const cat   = allCats.find(c => c.name === addForm.category) ?? { icon: '📦', color: '#94A3B8' };
+    if (!addForm.category || !limit || limit <= 0) return;
+    track('Budget:addBudget', { category: addForm.category, limit });
+    const current = load('kf_budgets', []);
+    const newBudget = { category: addForm.category, icon: cat.icon, color: cat.color, limit, spent: 0 };
+    save('kf_budgets', [...current, newBudget]);
+    refetchBdg();
+    showToast(`Anggaran ${addForm.category} berhasil ditambahkan`);
+    setShowAddForm(false);
+    setAddForm({ category: '', limit: '' });
   };
 
-  const openEdit = (b) => {
-    setEditCategory(b.category);
-    setForm({ category: b.category, limit: String(b.limit) });
-    setShowForm(true);
+  const handleSaveLimit = async () => {
+    const limit = parseInt(newLimit.replace(/\D/g, ''), 10);
+    if (!limit || limit <= 0) return;
+    setSaving(true);
+    track('Budget:updateLimit', { category: editingCategory, limit });
+    await putBudget(editingCategory, limit);
+    refetchBdg();
+    showToast(`Anggaran ${editingCategory} diperbarui`);
+    setEditingCategory(null);
+    setNewLimit('');
+    setSaving(false);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Januari 2024</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Keuangan</p>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Anggaran</h1>
         </div>
-        <Button onClick={() => { setEditCategory(null); setShowForm(true); }}>+ Tambah Anggaran</Button>
+        {availableCats.length > 0 && (
+          <Button onClick={() => { setAddForm({ category: availableCats[0].name, limit: '' }); setShowAddForm(true); }}>
+            + Tambah Anggaran
+          </Button>
+        )}
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: 'Total Anggaran', value: formatRupiah(totalBudget),             color: '#0F172A' },
-          { label: 'Total Terpakai', value: formatRupiah(totalSpent),              color: '#EF4444' },
-          { label: 'Sisa Anggaran', value: formatRupiah(totalBudget - totalSpent), color: '#10B981' },
-        ].map(s => (
-          <Card key={s.label} padding="p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">{s.label}</p>
-            <p className="text-xl font-bold tracking-tight" style={{ color: s.color }}>{s.value}</p>
-          </Card>
-        ))}
-      </div>
-
-      {overBudget.length > 0 && (
-        <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-2xl px-5 py-4">
-          <span className="text-xl">⚠️</span>
+      {/* Ringkasan total */}
+      <Card padding="p-6">
+        <div className="flex items-end justify-between mb-3">
           <div>
-            <p className="font-semibold text-red-700 text-sm">Anggaran terlampaui!</p>
-            <p className="text-xs text-red-500 mt-0.5">
-              {overBudget.map(b => b.category).join(', ')} melebihi batas anggaran.
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Total Terpakai</p>
+            <p className="text-2xl font-bold text-slate-900">{formatRupiah(totalSpent)}</p>
+            <p className="text-xs text-slate-400 mt-0.5">dari {formatRupiah(totalLimit)} ({totalPct}%)</p>
           </div>
+          <span className="text-3xl font-black text-slate-100">{totalPct}%</span>
         </div>
-      )}
+        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all"
+            style={{
+              width: `${Math.min(totalPct, 100)}%`,
+              backgroundColor: totalPct >= 90 ? '#EF4444' : totalPct >= 75 ? '#F59E0B' : '#10B981',
+            }} />
+        </div>
+      </Card>
 
+      {/* Daftar kategori */}
       <div className="space-y-3">
-        {bdgsWithSpent.map((b) => {
-          const pct       = b.limit > 0 ? Math.round((b.spent / b.limit) * 100) : 0;
-          const isOver    = b.spent > b.limit;
-          const isWarning = pct >= 75 && !isOver;
-          const barColor   = isOver ? '#EF4444' : isWarning ? '#F59E0B' : b.color;
-          const badgeBg    = isOver ? '#FEE2E2' : isWarning ? '#FEF3C7' : '#F0FDF4';
-          const badgeColor = isOver ? '#DC2626' : isWarning ? '#D97706' : '#16A34A';
+        {bdgsWithSpent.map(b => {
+          const pct      = b.limit > 0 ? Math.round((b.spent / b.limit) * 100) : 0;
+          const isOver   = pct >= 100;
+          const isWarn   = pct >= 80;
+          const barColor = isOver ? '#EF4444' : isWarn ? '#F59E0B' : b.color;
+          const sisa     = Math.max(b.limit - b.spent, 0);
 
           return (
             <Card key={b.category} padding="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
-                    style={{ backgroundColor: b.color + '20' }}>
-                    {b.icon}
-                  </div>
-                  <div>
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shrink-0"
+                  style={{ backgroundColor: b.color + '20' }}>
+                  {b.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-0.5">
                     <p className="font-semibold text-slate-900 text-sm">{b.category}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {formatRupiah(b.spent)} dari {formatRupiah(b.limit)}
-                    </p>
+                    {/* ternary → badge status */}
+                    {isOver ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Terlampaui</span>
+                    ) : isWarn ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-600">Hampir habis</span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                    <span>{formatRupiah(b.spent)} terpakai</span>
+                    <span>Sisa {formatRupiah(sisa)}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-2">
+                    <div className="h-full rounded-full transition-all"
+                      style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-400">Limit: {formatRupiah(b.limit)}</span>
+                    <button
+                      onClick={() => { setEditingCategory(b.category); setNewLimit(String(b.limit)); }}
+                      className="text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors">
+                      Edit limit
+                    </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
-                    style={{ backgroundColor: badgeBg, color: badgeColor }}>
-                    {pct}%
-                  </span>
-                  <Button variant="ghost" className="px-2! py-1! text-xs" onClick={() => openEdit(b)}>
-                    Edit
-                  </Button>
-                </div>
               </div>
-
-              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all"
-                  style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: barColor }} />
-              </div>
-
-              {isOver && (
-                <p className="text-xs text-red-500 mt-2">
-                  Kelebihan {formatRupiah(b.spent - b.limit)} dari anggaran
-                </p>
-              )}
             </Card>
           );
         })}
       </div>
 
-      {showForm && (
+      {/* Modal tambah anggaran baru */}
+      {showAddForm && (
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
           style={{ backgroundColor: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
           <div className="bg-white w-full max-w-sm rounded-2xl p-6"
             style={{ boxShadow: 'rgba(0,0,0,0.25) 0px 32px 64px -12px' }}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-bold text-slate-900">
-                {editCategory ? 'Edit Anggaran' : 'Tambah Anggaran'}
-              </h2>
-              <button onClick={() => setShowForm(false)} className="text-slate-400 text-xl">x</button>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-slate-900">Tambah Anggaran</h3>
+              <button onClick={() => setShowAddForm(false)} className="text-slate-400 text-xl">×</button>
             </div>
-            <form onSubmit={handleSave} className="space-y-4">
-              {editCategory ? (
-                <p className="font-semibold text-slate-900">{editCategory}</p>
-              ) : (
-                <div>
-                  <label className="text-xs font-medium text-slate-600 mb-1.5 block">Kategori</label>
-                  <select value={form.category}
-                    onChange={e => setForm({ ...form, category: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none bg-white">
-                    {categories.map(c => <option key={c.name}>{c.name}</option>)}
-                  </select>
-                </div>
-              )}
+
+            <div className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Batas Anggaran (Rp)</label>
-                <input type="text" value={form.limit}
-                  onChange={e => setForm({ ...form, limit: e.target.value })}
-                  placeholder="cth: 2000000" required
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Kategori</label>
+                <select value={addForm.category}
+                  onChange={e => setAddForm({ ...addForm, category: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none bg-white focus:border-slate-400">
+                  {availableCats.map(c => (
+                    <option key={c.name} value={c.name}>{c.icon} {c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Limit per Bulan (Rp)</label>
+                <input type="text" value={addForm.limit} autoFocus
+                  onChange={e => setAddForm({ ...addForm, limit: e.target.value })}
+                  placeholder="cth: 500000"
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-slate-400 transition-colors" />
               </div>
+
               <div className="flex gap-3 pt-2">
-                <Button variant="outline" fullWidth onClick={() => setShowForm(false)}>Batal</Button>
-                <Button type="submit" fullWidth>Simpan</Button>
+                <Button variant="outline" fullWidth onClick={() => setShowAddForm(false)}>Batal</Button>
+                <Button fullWidth onClick={handleAddBudget}
+                  disabled={!addForm.category || !addForm.limit}>
+                  Simpan
+                </Button>
               </div>
-            </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal edit limit */}
+      {editingCategory && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ backgroundColor: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="bg-white w-full max-w-sm rounded-2xl p-6"
+            style={{ boxShadow: 'rgba(0,0,0,0.25) 0px 32px 64px -12px' }}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-bold text-slate-900">Edit Limit Anggaran</h3>
+              <button onClick={() => setEditingCategory(null)} className="text-slate-400 text-xl">×</button>
+            </div>
+            <p className="text-sm text-slate-600 mb-4">Kategori: <strong>{editingCategory}</strong></p>
+            <div className="mb-5">
+              <label className="text-xs font-medium text-slate-600 mb-1.5 block">Limit Baru (Rp)</label>
+              <input type="text" value={newLimit}
+                onChange={e => setNewLimit(e.target.value)}
+                placeholder="0" autoFocus
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-slate-400 transition-colors" />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" fullWidth onClick={() => setEditingCategory(null)}>Batal</Button>
+              <Button fullWidth disabled={saving} onClick={handleSaveLimit}>
+                {saving ? 'Menyimpan...' : 'Simpan'}
+              </Button>
+            </div>
           </div>
         </div>
       )}

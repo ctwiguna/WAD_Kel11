@@ -19,7 +19,7 @@ function Bar({ label, income, expense, maxVal, isCurrentMonth }) {
   const incPct = maxVal > 0 ? (income / maxVal) * 100 : 0;
   const expPct = maxVal > 0 ? (expense / maxVal) * 100 : 0;
   return (
-    <div className="flex flex-col items-center gap-2 min-w-44px">
+    <div className="flex flex-col items-center gap-2 min-w-[44px]">
       <div className="flex items-end gap-1 h-32">
         <div className="w-4 rounded-t-md transition-all"
           style={{ height: `${incPct}%`, backgroundColor: isCurrentMonth ? '#10B981' : '#A7F3D0' }} />
@@ -32,7 +32,7 @@ function Bar({ label, income, expense, maxVal, isCurrentMonth }) {
 }
 
 export default function Reports() {
-  const [period, setPeriod] = useState('2024-01');
+  const [period, setPeriod] = useState('all');
 
   const { data: transactions, loading, error } = useFetch(getTransactions);
 
@@ -46,17 +46,25 @@ export default function Reports() {
 
   if (error) return <Card><p className="text-red-500 text-sm">⚠️ {error}</p></Card>;
 
-  const txns = transactions ?? [];
+  const allTxns = transactions ?? [];
+
+  // filter transaksi sesuai period yang dipilih
+  const txns = period === 'all'
+    ? allTxns
+    : allTxns.filter(t => t.date.startsWith(period));
+
+  // transaksi dibatalkan tidak dihitung dalam kalkulasi apapun
+  const activeTxns = txns.filter(t => t.status !== 'dibatalkan');
 
   // ── KPI ────────────────────────────────────────────────────
-  const totalIncome  = txns.filter(t => t.type === 'income').reduce((s, t)  => s + t.amount, 0);
-  const totalExpense = txns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const totalIncome  = activeTxns.filter(t => t.type === 'income').reduce((s, t)  => s + t.amount, 0);
+  const totalExpense = activeTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
   const totalSaving  = totalIncome - totalExpense;
   const savingsRate  = totalIncome > 0 ? Math.round((totalSaving / totalIncome) * 100) : 0;
 
   // ── Komposisi per kategori ──────────────────────────────────
   const categoryMap = {};
-  txns.filter(t => t.type === 'expense').forEach(t => {
+  activeTxns.filter(t => t.type === 'expense').forEach(t => {
     if (!categoryMap[t.category]) categoryMap[t.category] = 0;
     categoryMap[t.category] += t.amount;
   });
@@ -64,15 +72,25 @@ export default function Reports() {
     .map(([category, spent]) => ({ category, spent, pct: totalExpense > 0 ? Math.round((spent / totalExpense) * 100) : 0 }))
     .sort((a, b) => b.spent - a.spent);
 
-  // ── Grafik tren — 5 bulan statis + bulan ini dari transaksi ─
-  const chartData = [
-    { label: 'Agu', income: 18000000, expense: 9500000  },
-    { label: 'Sep', income: 20000000, expense: 11200000 },
-    { label: 'Okt', income: 19500000, expense: 10800000 },
-    { label: 'Nov', income: 21000000, expense: 12000000 },
-    { label: 'Des', income: 22000000, expense: 14500000 },
-    { label: 'Jan', income: totalIncome, expense: totalExpense },
-  ];
+  // ── Grafik tren — build dari data transaksi nyata per bulan ─
+  const monthlyMap = {};
+  allTxns.forEach(t => {
+    const m = t.date.slice(0, 7);
+    if (!monthlyMap[m]) monthlyMap[m] = { income: 0, expense: 0 };
+    if (t.status === 'dibatalkan') return;
+    if (t.type === 'income')  monthlyMap[m].income  += t.amount;
+    if (t.type === 'expense') monthlyMap[m].expense += t.amount;
+  });
+  const sortedMonths = Object.keys(monthlyMap).sort().slice(-6);
+  const chartData = sortedMonths.map((m, i) => {
+    const [y, mo] = m.split('-');
+    return {
+      label: months[parseInt(mo) - 1].slice(0, 3),
+      income:  monthlyMap[m].income,
+      expense: monthlyMap[m].expense,
+      isCurrent: i === sortedMonths.length - 1,
+    };
+  });
   const maxVal = Math.max(...chartData.map(d => Math.max(d.income, d.expense)));
 
   // ── Ekspor CSV ─────────────────────────────────────────────
@@ -104,14 +122,20 @@ export default function Reports() {
         </button>
       </div>
 
-      {/* Period selector */}
-      <select value={period} onChange={e => setPeriod(e.target.value)}
-        className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white outline-none">
-        {['2024-01','2023-12','2023-11','2023-10'].map(p => {
-          const [y, m] = p.split('-');
-          return <option key={p} value={p}>{months[parseInt(m) - 1]} {y}</option>;
-        })}
-      </select>
+      {/* Period selector — generate dari transaksi yang ada */}
+      {(() => {
+        const uniqueMonths = [...new Set(allTxns.map(t => t.date.slice(0, 7)))].sort().reverse();
+        return (
+          <select value={period} onChange={e => setPeriod(e.target.value)}
+            className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white outline-none">
+            <option value="all">Semua Periode</option>
+            {uniqueMonths.map(p => {
+              const [y, m] = p.split('-');
+              return <option key={p} value={p}>{months[parseInt(m) - 1]} {y}</option>;
+            })}
+          </select>
+        );
+      })()}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -143,8 +167,8 @@ export default function Reports() {
             </div>
           </div>
           <div className="flex items-end gap-4 pb-2 overflow-x-auto">
-            {chartData.map((d, i) => (
-              <Bar key={d.label} label={d.label} income={d.income} expense={d.expense} maxVal={maxVal} isCurrentMonth={i === chartData.length - 1} />
+            {chartData.map((d) => (
+              <Bar key={d.label} label={d.label} income={d.income} expense={d.expense} maxVal={maxVal} isCurrentMonth={d.isCurrent} />
             ))}
           </div>
         </Card>
@@ -203,7 +227,7 @@ export default function Reports() {
                 { name: 'Anak', avatar: '🧒' },
               ].map(({ name, avatar }) => {
                 const inc   = txns.filter(t => t.member === name && t.type === 'income').reduce((s, t)  => s + t.amount, 0);
-                const exp   = txns.filter(t => t.member === name && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+                const exp   = activeTxns.filter(t => t.member === name && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
                 const count = txns.filter(t => t.member === name).length;
                 return (
                   <tr key={name}>
