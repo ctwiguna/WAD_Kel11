@@ -19,7 +19,7 @@ function Bar({ label, income, expense, maxVal, isCurrentMonth }) {
   const incPct = maxVal > 0 ? (income / maxVal) * 100 : 0;
   const expPct = maxVal > 0 ? (expense / maxVal) * 100 : 0;
   return (
-    <div className="flex flex-col items-center gap-2 min-w-[44px]">
+    <div className="flex flex-col items-center gap-2 min-w-44px">
       <div className="flex items-end gap-1 h-32">
         <div className="w-4 rounded-t-md transition-all"
           style={{ height: `${incPct}%`, backgroundColor: isCurrentMonth ? '#10B981' : '#A7F3D0' }} />
