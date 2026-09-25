@@ -8,6 +8,7 @@ import {
   transactions as mockTransactions,
   budgets as mockBudgets,
   goals as mockGoals,
+  categories as mockCategories,
 } from '../data/mockData';
 
 // const BASE_URL = 'http://localhost:8000/api'; // aktifkan saat backend siap
@@ -101,6 +102,49 @@ export async function postGoalContribution(goalId, amount) {
     g.id === goalId ? { ...g, current: Math.min(g.current + amount, g.target) } : g
   );
   save('kf_goals', updated);
+  return updated;
+}
+
+// ─── Categories ──────────────────────────────────────────────
+
+export async function getCategories() {
+  track('getData:getCategories');
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.get(`${BASE_URL}/categories`);
+  // return data;
+
+  const cached = load('kf_categories', null);
+  if (cached) return cached;
+
+  await simulateDelay();
+  save('kf_categories', mockCategories);
+  return mockCategories;
+}
+
+export async function postCategory(cat) {
+  track('getData:postCategory', { name: cat.name });
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.post(`${BASE_URL}/categories`, cat);
+  // return data;
+
+  const current = load('kf_categories', mockCategories);
+  const updated = [...current, cat];
+  save('kf_categories', updated);
+  return updated;
+}
+
+export async function putCategory(name, changes) {
+  track('getData:putCategory', { name });
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.put(`${BASE_URL}/categories/${name}`, changes);
+  // return data;
+
+  const current = load('kf_categories', mockCategories);
+  const updated = current.map(c => c.name === name ? { ...c, ...changes } : c);
+  save('kf_categories', updated);
   return updated;
 }
 
