@@ -23,3 +23,4 @@ KeluargaFin membantu keluarga (Ayah, Ibu, Anak) mencatat pengeluaran bersama, me
 
 - Data disimpan di localStorage browser, ganti browser atau hapus data berarti mulai dari awal.
 - Upload bukti + OCR, Goals, dan Laporan dijadwalkan pada perbaikan berikutnya.
+
