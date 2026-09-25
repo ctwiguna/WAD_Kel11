@@ -1,6 +1,7 @@
 // App.jsx → shell utama, kirim props ke semua halaman
 
 import { useState } from 'react';
+import { ToastProvider } from './context/ToastContext';
 import QuickAdd from './components/QuickAdd';
 import { track } from './utils/analytics';
 import { load } from './utils/localStorage';
@@ -26,7 +27,7 @@ const navItems = [
 
 // bottom nav mobile: 2 kiri | FAB + | 2 kanan (tanpa Settings)
 const bottomNavLeft  = [navItems[0], navItems[1]]; // Dashboard, Transaksi
-const bottomNavRight = [navItems[2], navItems[4]]; // Anggaran, Laporan
+const bottomNavRight = [navItems[2], navItems[3]]; // Anggaran, Tujuan
 
 // props → user dikirim ke halaman yang butuh info user
 const defaultUser = {
@@ -85,6 +86,7 @@ export default function App() {
   const PageComponent = pages[page];
 
   return (
+    <ToastProvider>
     <div className="min-h-screen flex" style={{ backgroundColor: '#F8FAFC' }}>
       {/* Overlay mobile */}
       {sidebarOpen && (
@@ -203,5 +205,6 @@ export default function App() {
       {/* QA Panel — muncul di pojok bawah (development only) */}
       <QAPanel />
     </div>
+    </ToastProvider>
   );
 }

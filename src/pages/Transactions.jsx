@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useFetch } from '../hooks/useFetch';
-import { getTransactions, postTransaction } from '../API/getData';
+import { getTransactions, postTransaction, getCategories } from '../API/getData';
 import { track } from '../utils/analytics';
-import { categories, members, accounts, formatRupiah, formatDate } from '../data/mockData';
+import { useToast } from '../context/ToastContext';
+import { members, accounts, formatRupiah, formatDate } from '../data/mockData';
 import Card from '../components/Card';
 import Button from '../components/Button';
 
@@ -22,7 +23,7 @@ const emptyForm = {
   date: new Date().toISOString().split('T')[0],
   type: 'expense',
   amount: '',
-  category: categories[0].name,
+  category: '',
   member: members[0],
   merchant: '',
   notes: '',
@@ -41,6 +42,10 @@ function findDuplicate(txns, form) {
 }
 
 export default function Transactions() {
+  const { showToast } = useToast();
+  const { data: categoriesData } = useFetch(getCategories);
+  const categories = (categoriesData ?? []).filter(c => !c.archived);
+
   const [filter, setFilter]           = useState('all');
   const [memberFilter, setMemberFilter] = useState('all');
   const [showForm, setShowForm]       = useState(false);
@@ -68,6 +73,9 @@ export default function Transactions() {
   const filtered = txns
     .filter(t => (filter === 'all' || t.type === filter) && (memberFilter === 'all' || t.member === memberFilter))
     .sort((a, b) => b.date.localeCompare(a.date));
+
+  // Set kategori default saat categories pertama kali load
+  const defaultCat = categories[0]?.name ?? '';
 
   // Setiap kali form berubah → reset duplikat state
   const updateForm = (changes) => {
@@ -100,6 +108,7 @@ export default function Transactions() {
 
     await postTransaction(newTxn);
     refetch();
+    showToast('Transaksi berhasil disimpan');
     setShowForm(false);
     setForm(emptyForm);
     setDupWarning(null);
@@ -158,7 +167,7 @@ export default function Transactions() {
           </div>
         ) : (
           filtered.map((txn) => {
-            const cat = categories.find(c => c.name === txn.category);
+            const cat = (categoriesData ?? []).find(c => c.name === txn.category);
             const st  = statusConfig[txn.status] ?? statusConfig.selesai;
             return (
               <div key={txn.id}
@@ -270,9 +279,9 @@ export default function Transactions() {
 
               <div>
                 <label className="text-xs font-medium text-slate-600 mb-1.5 block">Kategori</label>
-                <select value={form.category} onChange={e => updateForm({ category: e.target.value })}
+                <select value={form.category || defaultCat} onChange={e => updateForm({ category: e.target.value })}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none bg-white">
-                  {categories.map(c => <option key={c.name}>{c.name}</option>)}
+                  {categories.map(c => <option key={c.name} value={c.name}>{c.icon} {c.name}</option>)}
                 </select>
               </div>
 

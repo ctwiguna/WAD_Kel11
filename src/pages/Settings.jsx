@@ -2,11 +2,24 @@
 
 import { useState } from 'react';
 import { useFetch } from '../hooks/useFetch';
-import { getCategories, postCategory, putCategory } from '../API/getData';
+import { getCategories, postCategory, putCategory, getAccounts, postAccount, putAccount, deleteAccount } from '../API/getData';
 import { track } from '../utils/analytics';
+import { useToast } from '../context/ToastContext';
+import { formatRupiah } from '../data/mockData';
 
 const colorOptions = ['#F59E0B','#3B82F6','#EC4899','#8B5CF6','#10B981','#F97316','#06B6D4','#EF4444','#94A3B8','#0F172A'];
 const iconOptions  = ['🍽️','🚗','🛍️','📚','💊','💡','🎬','📦','✈️','🏠','💰','🎁','🐾','💄','🏋️','📱','☕','🌿','🎮','💻'];
+
+const accTypeOptions = [
+  { value: 'bank',    label: 'Bank',    icon: '🏦' },
+  { value: 'cash',    label: 'Tunai',   icon: '💵' },
+  { value: 'ewallet', label: 'E-Wallet', icon: '📱' },
+  { value: 'invest',  label: 'Investasi', icon: '📈' },
+];
+
+const accIconByType = { bank: '🏦', cash: '💵', ewallet: '📱', invest: '📈' };
+
+const emptyAccForm = { name: '', icon: '🏦', type: 'bank', balance: '' };
 
 export default function Settings() {
   const [householdName, setHouseholdName] = useState('Keluarga Budi Santoso');
@@ -18,11 +31,22 @@ export default function Settings() {
   const [catForm, setCatForm]         = useState({ name: '', icon: '📦', color: '#94A3B8' });
   const [catSaving, setCatSaving]     = useState(false);
 
+  const { showToast } = useToast();
   const { data: categories, loading: loadCat, refetch: refetchCat } = useFetch(getCategories);
+
+  // state rekening
+  const [showAccForm, setShowAccForm]   = useState(false);
+  const [accForm, setAccForm]           = useState(emptyAccForm);
+  const [editingAcc, setEditingAcc]     = useState(null); // id akun yang sedang diedit
+  const [accSaving, setAccSaving]       = useState(false);
+  const [confirmDeleteAcc, setConfirmDeleteAcc] = useState(null);
+
+  const { data: accList, loading: loadAcc, refetch: refetchAcc } = useFetch(getAccounts);
 
   const handleSave = () => {
     track('Settings:saveHousehold');
     setSaved(true);
+    showToast('Informasi keluarga tersimpan');
     setTimeout(() => setSaved(false), 2000);
   };
 
@@ -33,6 +57,7 @@ export default function Settings() {
     track('Settings:addCategory', { name: catForm.name });
     await postCategory({ name: catForm.name.trim(), icon: catForm.icon, color: catForm.color, archived: false });
     refetchCat();
+    showToast(`Kategori "${catForm.name.trim()}" berhasil ditambahkan`);
     setCatSaving(false);
     setShowCatForm(false);
     setCatForm({ name: '', icon: '📦', color: '#94A3B8' });
@@ -42,11 +67,56 @@ export default function Settings() {
     track('Settings:toggleArchive', { name: cat.name, archived: !cat.archived });
     await putCategory(cat.name, { archived: !cat.archived });
     refetchCat();
+    showToast(cat.archived ? `Kategori "${cat.name}" dipulihkan` : `Kategori "${cat.name}" diarsipkan`, 'info');
   };
 
   const cats        = categories ?? [];
   const activeCats  = cats.filter(c => !c.archived);
   const archivedCats = cats.filter(c => c.archived);
+
+  const accs = accList ?? [];
+  const totalBalance = accs.reduce((s, a) => s + (a.balance ?? 0), 0);
+
+  const openAddAcc = () => {
+    setEditingAcc(null);
+    setAccForm(emptyAccForm);
+    setShowAccForm(true);
+  };
+
+  const openEditAcc = (acc) => {
+    setEditingAcc(acc.id);
+    setAccForm({ name: acc.name, icon: acc.icon, type: acc.type, balance: String(acc.balance ?? '') });
+    setShowAccForm(true);
+  };
+
+  const handleSaveAcc = async (e) => {
+    e.preventDefault();
+    if (!accForm.name.trim()) return;
+    setAccSaving(true);
+    const balanceNum = parseInt(accForm.balance.replace(/\D/g, ''), 10) || 0;
+    if (editingAcc) {
+      track('Settings:editAccount', { id: editingAcc });
+      await putAccount(editingAcc, { name: accForm.name.trim(), icon: accForm.icon, type: accForm.type, balance: balanceNum });
+      showToast(`Rekening "${accForm.name.trim()}" diperbarui`);
+    } else {
+      track('Settings:addAccount', { name: accForm.name });
+      await postAccount({ id: String(Date.now()), name: accForm.name.trim(), icon: accForm.icon, type: accForm.type, balance: balanceNum });
+      showToast(`Rekening "${accForm.name.trim()}" berhasil ditambahkan`);
+    }
+    refetchAcc();
+    setAccSaving(false);
+    setShowAccForm(false);
+    setAccForm(emptyAccForm);
+    setEditingAcc(null);
+  };
+
+  const handleDeleteAcc = async (id) => {
+    track('Settings:deleteAccount', { id });
+    await deleteAccount(id);
+    refetchAcc();
+    showToast('Rekening berhasil dihapus', 'info');
+    setConfirmDeleteAcc(null);
+  };
 
   const members = [
     { id: '1', name: 'Budi Santoso',  role: 'Ayah', email: 'budi@gmail.com', avatar: '👨' },
@@ -175,31 +245,54 @@ export default function Settings() {
         )}
       </div>
 
-      {/* Rekening */}
+      {/* Rekening & Dompet */}
       <div className="bg-white rounded-2xl p-6" style={{ boxShadow: 'rgba(0,0,0,0.06) 0px 4px 20px -4px' }}>
-        <h2 className="font-bold text-slate-900 mb-5 flex items-center gap-2">
-          <span>💳</span> Rekening & Dompet
-        </h2>
-        <div className="space-y-2 mb-4">
-          {[
-            { name: 'BCA Utama', icon: '🏦' },
-            { name: 'Mandiri Tabungan', icon: '🏦' },
-            { name: 'Tunai', icon: '💵' },
-            { name: 'GoPay', icon: '🟢' },
-            { name: 'OVO', icon: '🟣' },
-          ].map(acc => (
-            <div key={acc.name} className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
-              <div className="flex items-center gap-3">
-                <span className="text-base">{acc.icon}</span>
-                <span className="text-sm font-medium text-slate-800">{acc.name}</span>
-              </div>
-              <button className="text-xs text-slate-400 hover:text-slate-700 transition-colors">Edit</button>
-            </div>
-          ))}
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-bold text-slate-900 flex items-center gap-2">
+            <span>💳</span> Rekening & Dompet
+          </h2>
+          <button onClick={openAddAcc}
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-white hover:opacity-80 transition-opacity"
+            style={{ backgroundColor: '#0F172A' }}>
+            + Tambah
+          </button>
         </div>
-        <button className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
-          + Tambah Rekening
-        </button>
+        {/* Total saldo */}
+        <p className="text-xs text-slate-400 mb-4">
+          Total saldo: <span className="font-semibold text-slate-700">{formatRupiah(totalBalance)}</span>
+        </p>
+
+        {loadAcc ? (
+          <p className="text-sm text-slate-400 text-center py-4">Memuat...</p>
+        ) : (
+          <div className="space-y-2">
+            {accs.map(acc => (
+              <div key={acc.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-lg shadow-sm shrink-0">
+                  {acc.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800">{acc.name}</p>
+                  <p className="text-xs text-slate-400">{accTypeOptions.find(t => t.value === acc.type)?.label ?? acc.type}</p>
+                </div>
+                <p className="text-sm font-bold text-slate-700 shrink-0">{formatRupiah(acc.balance ?? 0)}</p>
+                <div className="flex items-center gap-1 shrink-0 ml-1">
+                  <button onClick={() => openEditAcc(acc)}
+                    className="text-xs text-slate-400 hover:text-slate-700 transition-colors px-1.5 py-1">
+                    Edit
+                  </button>
+                  <button onClick={() => setConfirmDeleteAcc(acc)}
+                    className="text-xs text-slate-400 hover:text-red-500 transition-colors px-1.5 py-1">
+                    Hapus
+                  </button>
+                </div>
+              </div>
+            ))}
+            {accs.length === 0 && (
+              <p className="text-sm text-slate-400 text-center py-4">Belum ada rekening. Tambahkan satu.</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Danger zone */}
@@ -214,6 +307,107 @@ export default function Settings() {
           Hapus Data Keluarga
         </button>
       </div>
+
+      {/* Modal tambah/edit rekening */}
+      {showAccForm && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ backgroundColor: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="bg-white w-full max-w-sm rounded-2xl p-6"
+            style={{ boxShadow: 'rgba(0,0,0,0.25) 0px 32px 64px -12px' }}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-bold text-slate-900">{editingAcc ? 'Edit Rekening' : 'Rekening Baru'}</h3>
+              <button onClick={() => setShowAccForm(false)} className="text-slate-400 text-xl leading-none">×</button>
+            </div>
+            <form onSubmit={handleSaveAcc} className="space-y-4">
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Nama Rekening</label>
+                <input type="text" value={accForm.name}
+                  onChange={e => setAccForm({ ...accForm, name: e.target.value })}
+                  placeholder="cth: BCA Utama, Tunai Dompet" required autoFocus
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-slate-400 transition-colors" />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Tipe</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {accTypeOptions.map(t => (
+                    <button key={t.value} type="button"
+                      onClick={() => setAccForm({ ...accForm, type: t.value, icon: accIconByType[t.value] })}
+                      className="flex items-center gap-2 p-3 rounded-xl border text-left transition-all"
+                      style={{
+                        backgroundColor: accForm.type === t.value ? '#0F172A' : '#F8FAFC',
+                        borderColor: accForm.type === t.value ? '#0F172A' : '#E2E8F0',
+                        color: accForm.type === t.value ? '#fff' : '#475569',
+                      }}>
+                      <span>{t.icon}</span>
+                      <span className="text-xs font-semibold">{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Saldo Awal (Rp)</label>
+                <input type="text" value={accForm.balance}
+                  onChange={e => setAccForm({ ...accForm, balance: e.target.value })}
+                  placeholder="0"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-slate-400 transition-colors" />
+              </div>
+
+              {/* Preview */}
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
+                <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center text-lg shadow-sm">
+                  {accForm.icon}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-800">{accForm.name || 'Nama rekening...'}</p>
+                  <p className="text-xs text-slate-400">{accTypeOptions.find(t => t.value === accForm.type)?.label}</p>
+                </div>
+                <p className="text-sm font-bold text-slate-700">
+                  {formatRupiah(parseInt(accForm.balance.replace(/\D/g, ''), 10) || 0)}
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowAccForm(false)}
+                  className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                  Batal
+                </button>
+                <button type="submit" disabled={accSaving}
+                  className="flex-1 py-3 rounded-xl text-sm font-semibold text-white hover:opacity-80 transition-all disabled:opacity-50"
+                  style={{ backgroundColor: '#0F172A' }}>
+                  {accSaving ? 'Menyimpan...' : 'Simpan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Konfirmasi hapus rekening */}
+      {confirmDeleteAcc && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ backgroundColor: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
+          <div className="bg-white w-full max-w-xs rounded-2xl p-6 text-center"
+            style={{ boxShadow: 'rgba(0,0,0,0.25) 0px 32px 64px -12px' }}>
+            <div className="text-3xl mb-3">{confirmDeleteAcc.icon}</div>
+            <h3 className="font-bold text-slate-900 mb-1">Hapus Rekening?</h3>
+            <p className="text-sm text-slate-500 mb-5">
+              <strong>{confirmDeleteAcc.name}</strong> akan dihapus permanen. Transaksi terkait tidak terpengaruh.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDeleteAcc(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                Batal
+              </button>
+              <button onClick={() => handleDeleteAcc(confirmDeleteAcc.id)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors">
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal tambah kategori */}
       {showCatForm && (
