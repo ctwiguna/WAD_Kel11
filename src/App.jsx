@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import QuickAdd from './components/QuickAdd';
 import { track } from './utils/analytics';
+import { load } from './utils/localStorage';
 import QAPanel from './components/QAPanel';
 import AuthPage from './pages/AuthPage';
+import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Budget from './pages/Budget';
@@ -12,15 +14,19 @@ import Goals from './pages/Goals';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 
-// props → navItems dikirim ke sidebar
+// props → navItems dikirim ke sidebar (semua halaman)
 const navItems = [
   { id: 'dashboard',    label: 'Dashboard',   icon: '📊' },
   { id: 'transactions', label: 'Transaksi',    icon: '💸' },
   { id: 'budget',       label: 'Anggaran',     icon: '📋' },
-  { id: 'goals',        label: 'Target',       icon: '🎯' },
+  { id: 'goals',        label: 'Tujuan',       icon: '🎯' },
   { id: 'reports',      label: 'Laporan',      icon: '📈' },
   { id: 'settings',     label: 'Pengaturan',   icon: '⚙️' },
 ];
+
+// bottom nav mobile: 2 kiri | FAB + | 2 kanan (tanpa Settings)
+const bottomNavLeft  = [navItems[0], navItems[1]]; // Dashboard, Transaksi
+const bottomNavRight = [navItems[2], navItems[4]]; // Anggaran, Laporan
 
 // props → user dikirim ke halaman yang butuh info user
 const defaultUser = {
@@ -40,11 +46,12 @@ const pages = {
 };
 
 export default function App() {
-  const [authed, setAuthed]           = useState(false);
-  const [page, setPage]               = useState('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [authed, setAuthed]             = useState(false);
+  const [onboarded, setOnboarded]       = useState(() => !!load('kf_onboarded', false));
+  const [page, setPage]                 = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
-  const [user] = useState(defaultUser); // props → dikirim ke halaman
+  const [user, setUser]                 = useState(defaultUser); // props → dikirim ke halaman
 
   const handleLogin = () => {
     track('App:login');
@@ -64,9 +71,16 @@ export default function App() {
   };
 
   // ternary → tampilkan AuthPage jika belum login
-  if (!authed) {
-    return <AuthPage onLogin={handleLogin} />;
-  }
+  if (!authed) return <AuthPage onLogin={handleLogin} />;
+
+  // ternary → tampilkan Onboarding jika belum setup household
+  if (!onboarded) return (
+    <Onboarding onDone={({ name, household }) => {
+      track('Onboarding:done', { household });
+      setUser(u => ({ ...u, name, household }));
+      setOnboarded(true);
+    }} />
+  );
 
   const PageComponent = pages[page];
 
@@ -154,10 +168,9 @@ export default function App() {
           <PageComponent user={user} />
         </main>
 
-        {/* Bottom nav mobile — 2 item | FAB + | 2 item */}
+        {/* Bottom nav: Dashboard | Transaksi | [+] | Anggaran | Laporan */}
         <nav className="lg:hidden flex items-center border-t border-slate-100 bg-white sticky bottom-0 z-30">
-          {/* 2 item kiri */}
-          {navItems.slice(0, 2).map((item) => (
+          {bottomNavLeft.map((item) => (
             <button key={item.id} onClick={() => handleNavigate(item.id)}
               className="flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors"
               style={{ color: page === item.id ? '#0F172A' : '#94A3B8' }}>
@@ -165,20 +178,15 @@ export default function App() {
               <span className="text-[10px] font-medium">{item.label}</span>
             </button>
           ))}
-
-          {/* FAB tengah — tombol + catat cepat */}
           <div className="flex-1 flex justify-center">
             <button
               onClick={() => { track('App:quickAdd'); setQuickAddOpen(true); }}
-              className="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl font-light shadow-lg -mt-5 transition-transform active:scale-95"
-              style={{ backgroundColor: '#0F172A', boxShadow: 'rgba(15,23,42,0.35) 0px 8px 24px -4px' }}
-            >
+              className="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl font-light -mt-5 transition-transform active:scale-95"
+              style={{ backgroundColor: '#0F172A', boxShadow: 'rgba(15,23,42,0.35) 0px 8px 24px -4px' }}>
               +
             </button>
           </div>
-
-          {/* 2 item kanan */}
-          {navItems.slice(2, 4).map((item) => (
+          {bottomNavRight.map((item) => (
             <button key={item.id} onClick={() => handleNavigate(item.id)}
               className="flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors"
               style={{ color: page === item.id ? '#0F172A' : '#94A3B8' }}>
