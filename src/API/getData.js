@@ -1,104 +1,211 @@
-// Materi: folder API/getData → siap diganti axios
-// Saat ini belum ada backend, jadi kita "simulasi" dengan localStorage.
-// Struktur fungsi dibuat sama persis seperti kalau nanti pakai axios,
-// supaya tinggal ganti isi dalam tanpa ubah pemanggil.
+// getData.js — lapisan data fetching
+// Saat ini: ambil dari localStorage (dengan fallback ke mockData)
+// Nanti ganti dengan: import axios from 'axios'; dan panggil endpoint FastAPI
 
-import { storage } from "../lib/storage";
-import { track } from "../lib/analytics";
+import { load, save } from '../utils/localStorage';
+import { track } from '../utils/analytics';
+import {
+  transactions as mockTransactions,
+  budgets as mockBudgets,
+  goals as mockGoals,
+  categories as mockCategories,
+  mockAccounts,
+} from '../data/mockData';
 
-const KEY = {
-  session: "kf.session",
-  household: "kf.household",
-  transactions: "kf.transactions",
-  categories: "kf.categories",
-  budgets: "kf.budgets",
-  goals: "kf.goals", // TAMBAHAN BARU
-};
+// const BASE_URL = 'http://localhost:8000/api'; // aktifkan saat backend siap
 
-const fakeLatency = (ms = 100) => new Promise((res) => setTimeout(res, ms));
+// ─── Transactions ────────────────────────────────────────────
 
-export async function getData(resource, params = {}) {
-  track("api.request", { resource });
-  await fakeLatency();
+export async function getTransactions() {
+  track('getData:getTransactions');
 
-  switch (resource) {
-    case "session": return storage.load(KEY.session, null);
-    case "household": return storage.load(KEY.household, null);
-    case "transactions": {
-      const all = storage.load(KEY.transactions, []);
-      if (params.memberId) return all.filter((t) => t.memberId === params.memberId);
-      return all;
-    }
-    case "categories":
-      return storage.load(KEY.categories, [
-        { id: "c_makan", name: "Makan", icon: "🍽️" },
-        { id: "c_transport", name: "Transport", icon: "🚗" },
-        { id: "c_belanja", name: "Belanja", icon: "🛒" },
-        { id: "c_tagihan", name: "Tagihan", icon: "💡" },
-        { id: "c_anak", name: "Anak", icon: "🧸" },
-        { id: "c_hiburan", name: "Hiburan", icon: "🎬" },
-        { id: "c_kesehatan", name: "Kesehatan", icon: "💊" },
-      ]);
-    case "budgets": return storage.load(KEY.budgets, []);
-    case "goals": return storage.load(KEY.goals, []); // TAMBAHAN BARU
-    default: throw new Error("Resource tidak dikenal: " + resource);
-  }
+  // Nanti ganti dengan:
+  // const { data } = await axios.get(`${BASE_URL}/transactions`);
+  // return data;
+
+  const cached = load('kf_transactions', null);
+  if (cached) return cached;
+
+  await simulateDelay();
+  save('kf_transactions', mockTransactions);
+  return mockTransactions;
 }
 
-export async function postData(resource, body) {
-  track("api.mutate", { resource });
-  await fakeLatency();
+export async function postTransaction(txn) {
+  track('getData:postTransaction', { merchant: txn.merchant, amount: txn.amount });
 
-  if (resource === "login") {
-    const session = { userId: "u_" + Date.now(), email: body.email, name: body.name, role: "owner" };
-    storage.save(KEY.session, session);
-    return session;
-  }
+  // Nanti ganti dengan:
+  // const { data } = await axios.post(`${BASE_URL}/transactions`, txn);
+  // return data;
 
-  if (resource === "household") {
-    const hh = {
-      id: "hh_" + Date.now(), name: body.name, currency: "IDR",
-      members: [
-        { id: "m_ayah", name: "Ayah", role: "owner" },
-        { id: "m_ibu", name: "Ibu", role: "co-manager" },
-        { id: "m_anak", name: "Anak", role: "dependent" },
-      ],
-    };
-    storage.save(KEY.household, hh);
-    return hh;
-  }
+  const current = load('kf_transactions', mockTransactions);
+  const updated = [txn, ...current];
+  save('kf_transactions', updated);
+  return txn;
+}
 
-  if (resource === "transaction") {
-    const all = storage.load(KEY.transactions, []);
-    const next = [...all, { id: "t_" + Date.now(), ...body, createdAt: new Date().toISOString() }];
-    storage.save(KEY.transactions, next);
-    return body;
-  }
+// ─── Budgets ─────────────────────────────────────────────────
 
-  if (resource === "budget") {
-    const all = storage.load(KEY.budgets, []);
-    const next = [...all, { id: "b_" + Date.now(), ...body }];
-    storage.save(KEY.budgets, next);
-    return body;
-  }
+export async function getBudgets() {
+  track('getData:getBudgets');
 
-  // TAMBAHAN BARU UNTUK GOALS
-  if (resource === "goal") {
-    const all = storage.load(KEY.goals, []);
-    const next = [...all, { id: "g_" + Date.now(), ...body, current: 0, createdAt: new Date().toISOString() }];
-    storage.save(KEY.goals, next);
-    return body;
-  }
+  // Nanti ganti dengan:
+  // const { data } = await axios.get(`${BASE_URL}/budgets`);
+  // return data;
 
-  if (resource === "goal-contribution") {
-    const all = storage.load(KEY.goals, []);
-    const goal = all.find((g) => g.id === body.goalId);
-    if (goal) {
-      goal.current = (goal.current || 0) + body.amount;
-      storage.save(KEY.goals, all);
-    }
-    return body;
-  }
+  const cached = load('kf_budgets', null);
+  if (cached) return cached;
 
-  throw new Error("postData: resource tidak dikenal " + resource);
+  await simulateDelay();
+  save('kf_budgets', mockBudgets);
+  return mockBudgets;
+}
+
+export async function putBudget(category, limit) {
+  track('getData:putBudget', { category, limit });
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.put(`${BASE_URL}/budgets/${category}`, { limit });
+  // return data;
+
+  const current = load('kf_budgets', mockBudgets);
+  const updated = current.map(b => b.category === category ? { ...b, limit } : b);
+  save('kf_budgets', updated);
+  return updated;
+}
+
+// ─── Goals ───────────────────────────────────────────────────
+
+export async function getGoals() {
+  track('getData:getGoals');
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.get(`${BASE_URL}/goals`);
+  // return data;
+
+  const cached = load('kf_goals', null);
+  if (cached) return cached;
+
+  await simulateDelay();
+  save('kf_goals', mockGoals);
+  return mockGoals;
+}
+
+export async function postGoalContribution(goalId, amount) {
+  track('getData:postGoalContribution', { goalId, amount });
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.post(`${BASE_URL}/goals/${goalId}/contribute`, { amount });
+  // return data;
+
+  const current = load('kf_goals', mockGoals);
+  const updated = current.map(g =>
+    g.id === goalId ? { ...g, current: Math.min(g.current + amount, g.target) } : g
+  );
+  save('kf_goals', updated);
+  return updated;
+}
+
+// ─── Categories ──────────────────────────────────────────────
+
+export async function getCategories() {
+  track('getData:getCategories');
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.get(`${BASE_URL}/categories`);
+  // return data;
+
+  const cached = load('kf_categories', null);
+  if (cached) return cached;
+
+  await simulateDelay();
+  save('kf_categories', mockCategories);
+  return mockCategories;
+}
+
+export async function postCategory(cat) {
+  track('getData:postCategory', { name: cat.name });
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.post(`${BASE_URL}/categories`, cat);
+  // return data;
+
+  const current = load('kf_categories', mockCategories);
+  const updated = [...current, cat];
+  save('kf_categories', updated);
+  return updated;
+}
+
+export async function putCategory(name, changes) {
+  track('getData:putCategory', { name });
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.put(`${BASE_URL}/categories/${name}`, changes);
+  // return data;
+
+  const current = load('kf_categories', mockCategories);
+  const updated = current.map(c => c.name === name ? { ...c, ...changes } : c);
+  save('kf_categories', updated);
+  return updated;
+}
+
+// ─── Accounts ────────────────────────────────────────────────
+
+export async function getAccounts() {
+  track('getData:getAccounts');
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.get(`${BASE_URL}/accounts`);
+  // return data;
+
+  const cached = load('kf_accounts', null);
+  if (cached) return cached;
+
+  await simulateDelay();
+  save('kf_accounts', mockAccounts);
+  return mockAccounts;
+}
+
+export async function postAccount(acc) {
+  track('getData:postAccount', { name: acc.name });
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.post(`${BASE_URL}/accounts`, acc);
+  // return data;
+
+  const current = load('kf_accounts', mockAccounts);
+  const updated = [...current, acc];
+  save('kf_accounts', updated);
+  return updated;
+}
+
+export async function putAccount(id, changes) {
+  track('getData:putAccount', { id });
+
+  // Nanti ganti dengan:
+  // const { data } = await axios.put(`${BASE_URL}/accounts/${id}`, changes);
+  // return data;
+
+  const current = load('kf_accounts', mockAccounts);
+  const updated = current.map(a => a.id === id ? { ...a, ...changes } : a);
+  save('kf_accounts', updated);
+  return updated;
+}
+
+export async function deleteAccount(id) {
+  track('getData:deleteAccount', { id });
+
+  // Nanti ganti dengan:
+  // await axios.delete(`${BASE_URL}/accounts/${id}`);
+
+  const current = load('kf_accounts', mockAccounts);
+  const updated = current.filter(a => a.id !== id);
+  save('kf_accounts', updated);
+  return updated;
+}
+
+// ─── Helper ──────────────────────────────────────────────────
+
+function simulateDelay(ms = 400) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }

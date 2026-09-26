@@ -1,105 +1,210 @@
-import { useState, useEffect } from "react";
-import Dashboard from "./pages/Dashboard";
-import Transactions from "./pages/Transactions";
-import Goals from "./pages/Goals";
-import Laporan from "./pages/Laporan";
-import Budget from "./pages/Budget";
-import Login from "./pages/Login";
-import { getData, postData } from "./API/getData";
-import { track, getEvents, clearEvents } from "./lib/analytics";
-import { storage } from "./lib/storage";
+// App.jsx → shell utama, kirim props ke semua halaman
+
+import { useState } from 'react';
+import { ToastProvider } from './context/ToastContext';
+import QuickAdd from './components/QuickAdd';
+import { track } from './utils/analytics';
+import { load } from './utils/localStorage';
+import QAPanel from './components/QAPanel';
+import AuthPage from './pages/AuthPage';
+import Onboarding from './pages/Onboarding';
+import Dashboard from './pages/Dashboard';
+import Transactions from './pages/Transactions';
+import Budget from './pages/Budget';
+import Goals from './pages/Goals';
+import Reports from './pages/Reports';
+import Settings from './pages/Settings';
+
+// props → navItems dikirim ke sidebar (semua halaman)
+const navItems = [
+  { id: 'dashboard',    label: 'Dashboard',   icon: '📊' },
+  { id: 'transactions', label: 'Transaksi',    icon: '💸' },
+  { id: 'budget',       label: 'Anggaran',     icon: '📋' },
+  { id: 'goals',        label: 'Tujuan',       icon: '🎯' },
+  { id: 'reports',      label: 'Laporan',      icon: '📈' },
+  { id: 'settings',     label: 'Pengaturan',   icon: '⚙️' },
+];
+
+// bottom nav mobile: 2 kiri | FAB + | 2 kanan (tanpa Settings)
+const bottomNavLeft  = [navItems[0], navItems[1]]; // Dashboard, Transaksi
+const bottomNavRight = [navItems[2], navItems[3]]; // Anggaran, Tujuan
+
+// props → user dikirim ke halaman yang butuh info user
+const defaultUser = {
+  name: 'Budi Santoso',
+  email: 'budi@gmail.com',
+  household: 'Keluarga Santoso',
+  avatar: '👨',
+};
+
+const pages = {
+  dashboard:    Dashboard,
+  transactions: Transactions,
+  budget:       Budget,
+  goals:        Goals,
+  reports:      Reports,
+  settings:     Settings,
+};
 
 export default function App() {
-  const [session, setSession] = useState(null);
-  const [household, setHousehold] = useState(null);
-  const [page, setPage] = useState("dashboard");
-  const [showQA, setShowQA] = useState(false);
-  const [booted, setBooted] = useState(false);
+  const [authed, setAuthed]             = useState(false);
+  const [onboarded, setOnboarded]       = useState(() => !!load('kf_onboarded', false));
+  const [page, setPage]                 = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen]   = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [user, setUser]                 = useState(defaultUser); // props → dikirim ke halaman
 
-  useEffect(() => {
-    (async () => {
-      const s = await getData("session");
-      const h = await getData("household");
-      if (s) setSession(s);
-      if (h) setHousehold(h);
-      setBooted(true);
-    })();
-  }, []);
-
-  const handleLogin = async (s) => {
-    setSession(s);
-    const existing = await getData("household");
-    if (!existing) {
-      const h = await postData("household", { name: "Keluarga " + s.name });
-      setHousehold(h);
-    } else { setHousehold(existing); }
+  const handleLogin = () => {
+    track('App:login');
+    setAuthed(true);
   };
 
   const handleLogout = () => {
-    storage.save("kf.session", null);
-    setSession(null); setHousehold(null);
+    track('App:logout');
+    // window.location.assign → redirect ke halaman awal
+    window.location.assign('/');
   };
 
-  if (!booted) return <div className="min-h-screen bg-kf-bg flex items-center justify-center">Memuat...</div>;
-  if (!session) return <Login onLogin={handleLogin} />;
-
-  const renderPage = () => {
-    switch (page) {
-      case "dashboard": return <Dashboard session={session} household={household} />;
-      case "transactions": return <Transactions household={household} />;
-      case "goals": return <Goals household={household} />;
-      case "laporan": return <Laporan household={household} />;
-      case "budget": return <Budget household={household} />;
-      default: return <Dashboard session={session} household={household} />;
-    }
+  const handleNavigate = (id) => {
+    track('App:navigate', { to: id });
+    setPage(id);
+    setSidebarOpen(false);
   };
+
+  // ternary → tampilkan AuthPage jika belum login
+  if (!authed) return <AuthPage onLogin={handleLogin} />;
+
+  // ternary → tampilkan Onboarding jika belum setup household
+  if (!onboarded) return (
+    <Onboarding onDone={({ name, household }) => {
+      track('Onboarding:done', { household });
+      setUser(u => ({ ...u, name, household }));
+      setOnboarded(true);
+    }} />
+  );
+
+  const PageComponent = pages[page];
 
   return (
-    <div className="min-h-screen bg-kf-bg relative">
-      {/* Floating Controls */}
-      <div className="fixed top-4 right-4 z-30 flex gap-2">
-        <button onClick={() => setShowQA(!showQA)} className="text-[10px] px-2 py-1 bg-white rounded-full border border-gray-200 shadow-kf">QA</button>
-        <button onClick={() => storage.setFailMode(!storage.getFailMode())} className={`text-[10px] px-2 py-1 rounded-full border shadow-kf ${storage.getFailMode() ? 'bg-red-100 text-red-600' : 'bg-white'}`}>
-          failMode: {storage.getFailMode() ? 'ON' : 'OFF'}
-        </button>
-        <button onClick={handleLogout} className="text-[10px] px-2 py-1 bg-white rounded-full border border-gray-200 shadow-kf">Keluar</button>
+    <ToastProvider>
+    <div className="min-h-screen flex" style={{ backgroundColor: '#F8FAFC' }}>
+      {/* Overlay mobile */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 lg:hidden"
+          style={{ backgroundColor: 'rgba(15,23,42,0.4)', backdropFilter: 'blur(2px)' }}
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed top-0 left-0 h-full z-50 flex flex-col transition-transform duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ width: '240px', backgroundColor: '#0F172A' }}
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-6 py-6 border-b border-white/10">
+          <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-base">💰</div>
+          <div>
+            <p className="text-white font-bold text-base leading-tight">KeluargaFin</p>
+            {/* props → nama household dari state user */}
+            <p className="text-white/40 text-xs">{user.household}</p>
+          </div>
+        </div>
+
+        {/* Nav — map navItems */}
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleNavigate(item.id)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
+              style={{
+                // ternary → highlight halaman aktif
+                backgroundColor: page === item.id ? 'rgba(255,255,255,0.12)' : 'transparent',
+                color:           page === item.id ? '#fff' : 'rgba(255,255,255,0.5)',
+              }}
+            >
+              <span className="text-base">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {/* User info — props user */}
+        <div className="px-4 py-4 border-t border-white/10">
+          <div className="flex items-center gap-3 px-2">
+            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm">
+              {user.avatar}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-white text-xs font-semibold truncate">{user.name}</p>
+              <p className="text-white/40 text-xs truncate">{user.email}</p>
+            </div>
+            <button onClick={handleLogout} title="Keluar"
+              className="text-white/30 hover:text-white/70 transition-colors text-sm">
+              ⎋
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Konten utama */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header mobile */}
+        <header className="lg:hidden flex items-center justify-between px-4 py-4 bg-white border-b border-slate-100 sticky top-0 z-30"
+          style={{ boxShadow: 'rgba(0,0,0,0.04) 0px 1px 8px' }}>
+          <button onClick={() => setSidebarOpen(true)}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+            ☰
+          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-base">💰</span>
+            <span className="font-bold text-slate-900 text-sm">KeluargaFin</span>
+          </div>
+          <div className="w-9 h-9" />
+        </header>
+
+        {/* Halaman — props user dikirim ke PageComponent */}
+        <main className="flex-1 p-6 lg:p-8 overflow-auto">
+          <PageComponent user={user} />
+        </main>
+
+        {/* Bottom nav: Dashboard | Transaksi | [+] | Anggaran | Laporan */}
+        <nav className="lg:hidden flex items-center border-t border-slate-100 bg-white sticky bottom-0 z-30">
+          {bottomNavLeft.map((item) => (
+            <button key={item.id} onClick={() => handleNavigate(item.id)}
+              className="flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors"
+              style={{ color: page === item.id ? '#0F172A' : '#94A3B8' }}>
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </button>
+          ))}
+          <div className="flex-1 flex justify-center">
+            <button
+              onClick={() => { track('App:quickAdd'); setQuickAddOpen(true); }}
+              className="w-14 h-14 rounded-full flex items-center justify-center text-white text-2xl font-light -mt-5 transition-transform active:scale-95"
+              style={{ backgroundColor: '#0F172A', boxShadow: 'rgba(15,23,42,0.35) 0px 8px 24px -4px' }}>
+              +
+            </button>
+          </div>
+          {bottomNavRight.map((item) => (
+            <button key={item.id} onClick={() => handleNavigate(item.id)}
+              className="flex-1 flex flex-col items-center gap-0.5 py-3 transition-colors"
+              style={{ color: page === item.id ? '#0F172A' : '#94A3B8' }}>
+              <span className="text-lg leading-none">{item.icon}</span>
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </button>
+          ))}
+        </nav>
       </div>
 
-      <main className="pb-28">{renderPage()}</main>
+      {/* Quick Add Modal */}
+      {quickAddOpen && <QuickAdd onClose={() => setQuickAddOpen(false)} onNavigate={handleNavigate} />}
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-4 left-4 right-4 bg-white/95 backdrop-blur-md rounded-full shadow-kf-lg flex justify-around items-center py-3 px-2 z-20 border border-gray-100">
-        <button onClick={() => setPage("dashboard")} className={`flex flex-col items-center gap-1 px-3 py-1 rounded-full ${page === 'dashboard' ? 'bg-[#2D2D2D] text-white' : 'text-kf-muted'}`}>
-          <span className="text-lg"></span><span className="text-[10px] font-semibold">Beranda</span>
-        </button>
-        <button onClick={() => setPage("transactions")} className={`flex flex-col items-center gap-1 px-3 py-1 rounded-full ${page === 'transactions' ? 'bg-[#2D2D2D] text-white' : 'text-kf-muted'}`}>
-          <span className="text-lg">💳</span><span className="text-[10px] font-semibold">Transaksi</span>
-        </button>
-        <button onClick={() => setPage("transactions")} className="w-14 h-14 bg-kf-primary rounded-full shadow-fab flex items-center justify-center text-white text-3xl font-light -mt-8 border-4 border-kf-bg">
-          +
-        </button>
-        <button onClick={() => setPage("goals")} className={`flex flex-col items-center gap-1 px-3 py-1 rounded-full ${page === 'goals' ? 'bg-[#2D2D2D] text-white' : 'text-kf-muted'}`}>
-          <span className="text-lg">⭐</span><span className="text-[10px] font-semibold">Goals</span>
-        </button>
-        <button onClick={() => setPage("laporan")} className={`flex flex-col items-center gap-1 px-3 py-1 rounded-full ${page === 'laporan' ? 'bg-[#2D2D2D] text-white' : 'text-kf-muted'}`}>
-          <span className="text-lg">📊</span><span className="text-[10px] font-semibold">Laporan</span>
-        </button>
-      </nav>
-
-      {showQA && (
-        <div className="fixed top-16 right-2 w-72 max-h-80 overflow-auto bg-black/90 text-green-300 text-xs p-3 rounded-xl z-50">
-          <div className="flex justify-between mb-2 border-b border-gray-700 pb-2">
-            <span className="font-bold text-white">Analytics</span>
-            <button onClick={clearEvents} className="text-red-400">Clear</button>
-          </div>
-          {getEvents().map((e, i) => (
-            <div key={i} className="border-b border-gray-800 py-1">
-              <div className="text-yellow-300">{e.event}</div>
-              <div className="text-gray-400 truncate">{JSON.stringify(e.payload)}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* QA Panel — muncul di pojok bawah (development only) */}
+      <QAPanel />
     </div>
+    </ToastProvider>
   );
 }

@@ -1,27 +1,28 @@
-// Materi: props → default value di Button
+// Button — props + default value
+
+const variantStyles = {
+  primary: { backgroundColor: '#0F172A', color: '#fff', border: 'none' },
+  outline: { backgroundColor: 'transparent', color: '#334155', border: '1px solid #E2E8F0' },
+  danger:  { backgroundColor: 'transparent', color: '#DC2626', border: '1px solid #FECACA' },
+  ghost:   { backgroundColor: 'transparent', color: '#64748B', border: 'none' },
+};
 
 export default function Button({
   children,
   onClick,
-  variant = "primary", // default value
-  type = "button",
-  disabled = false,
-  className = "",
+  variant = 'primary',   // default value
+  type = 'button',       // default value
+  disabled = false,      // default value
+  fullWidth = false,     // default value
+  className = '',
 }) {
-  const base =
-    "px-4 py-2 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed";
-  const variants = {
-    primary: "bg-blue-600 text-white hover:bg-blue-700",
-    secondary: "bg-gray-200 text-gray-800 hover:bg-gray-300",
-    danger: "bg-red-600 text-white hover:bg-red-700",
-  };
-
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`${base} ${variants[variant]} ${className}`}
+      className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 ${fullWidth ? 'w-full' : ''} ${className}`}
+      style={variantStyles[variant] ?? variantStyles.primary}
     >
       {children}
     </button>
