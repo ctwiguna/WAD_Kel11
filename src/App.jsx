@@ -20,7 +20,7 @@ const navItems = [
   { id: 'dashboard',    label: 'Dashboard',   icon: '📊' },
   { id: 'transactions', label: 'Transaksi',    icon: '💸' },
   { id: 'budget',       label: 'Anggaran',     icon: '📋' },
-  { id: 'goals',        label: 'Tujuan',       icon: '🎯' },
+  { id: 'goals',        label: 'Target',       icon: '🎯' },
   { id: 'reports',      label: 'Laporan',      icon: '📈' },
   { id: 'settings',     label: 'Pengaturan',   icon: '⚙️' },
 ];
