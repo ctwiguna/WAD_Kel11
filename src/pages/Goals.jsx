@@ -5,6 +5,7 @@ import { useFetch } from '../hooks/useFetch';
 import { getGoals, postGoalContribution } from '../API/getData';
 import { save, load } from '../utils/localStorage';
 import { track } from '../utils/analytics';
+import { useToast } from '../context/ToastContext';
 import { formatRupiah } from '../data/mockData';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -17,6 +18,7 @@ export default function Goals() {
   const [contribAmount, setContribAmount] = useState('');
   const [form, setForm] = useState({ name: '', target: '', deadline: '', icon: '🎯', color: '#3B82F6' });
 
+  const { showToast } = useToast();
   const { data: goals, loading, error, refetch } = useFetch(getGoals);
 
   track('Goals:render');
@@ -49,6 +51,7 @@ export default function Goals() {
     const updated = [newGoal, ...goalList];
     save('kf_goals', updated);
     refetch();
+    showToast(`Tujuan "${newGoal.name}" berhasil dibuat`);
     setShowForm(false);
     setForm({ name: '', target: '', deadline: '', icon: '🎯', color: '#3B82F6' });
   };
@@ -58,6 +61,7 @@ export default function Goals() {
     track('Goals:addContribution', { goalId, amount: amt });
     await postGoalContribution(goalId, amt);
     refetch();
+    showToast(`Dana ${formatRupiah(amt)} berhasil ditambahkan`);
     setShowContrib(null);
     setContribAmount('');
   };
@@ -67,9 +71,9 @@ export default function Goals() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Keuangan</p>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Target Tabungan</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Tujuan Tabungan</h1>
         </div>
-        <Button onClick={() => setShowForm(true)}>+ Target Baru</Button>
+        <Button onClick={() => setShowForm(true)}>+ Tujuan Baru</Button>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -87,8 +91,8 @@ export default function Goals() {
       {goalList.length === 0 ? (
         <Card className="text-center py-12">
           <p className="text-3xl mb-3">🎯</p>
-          <p className="font-semibold text-slate-700 mb-1">Belum ada Target tabungan</p>
-          <p className="text-sm text-slate-400">Tambah Target pertamamu sekarang.</p>
+          <p className="font-semibold text-slate-700 mb-1">Belum ada tujuan tabungan</p>
+          <p className="text-sm text-slate-400">Tambah tujuan pertamamu sekarang.</p>
         </Card>
       ) : (
         // map → daftar goals
@@ -128,12 +132,12 @@ export default function Goals() {
                   </div>
                   <p className="text-xs text-slate-400 mt-1.5">
                     {/* ternary → teks status */}
-                    {done ? 'Target tercapai! 🎉' : `Sisa ${formatRupiah(remaining)} · ${pct}% terkumpul`}
+                    {done ? 'Tujuan tercapai! 🎉' : `Sisa ${formatRupiah(remaining)} · ${pct}% terkumpul`}
                   </p>
                 </div>
 
                 {!done && (
-                  <Button variant="outline" fullWidth className="text-xs py-2!" onClick={() => setShowContrib(goal.id)}>
+                  <Button variant="outline" fullWidth className="text-xs !py-2" onClick={() => setShowContrib(goal.id)}>
                     + Tambah Dana
                   </Button>
                 )}
@@ -165,19 +169,19 @@ export default function Goals() {
         </div>
       )}
 
-      {/* Modal Target baru */}
+      {/* Modal tujuan baru */}
       {showForm && (
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4"
           style={{ backgroundColor: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)' }}>
           <div className="bg-white w-full max-w-sm rounded-2xl p-6"
             style={{ boxShadow: 'rgba(0,0,0,0.25) 0px 32px 64px -12px' }}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-bold text-slate-900">Target Tabungan Baru</h2>
+              <h2 className="font-bold text-slate-900">Tujuan Tabungan Baru</h2>
               <button onClick={() => setShowForm(false)} className="text-slate-400 text-xl">×</button>
             </div>
             <form onSubmit={addGoal} className="space-y-4">
               <div>
-                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Nama Target</label>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Nama Tujuan</label>
                 <input type="text" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="cth: Liburan keluarga" required
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-slate-400 transition-colors" />
@@ -208,7 +212,7 @@ export default function Goals() {
               </div>
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" fullWidth onClick={() => setShowForm(false)}>Batal</Button>
-                <Button type="submit" fullWidth>Buat Target</Button>
+                <Button type="submit" fullWidth>Buat Tujuan</Button>
               </div>
             </form>
           </div>

@@ -13,6 +13,14 @@ export const members = ['Ayah', 'Ibu', 'Anak'];
 
 export const accounts = ['BCA Utama', 'Mandiri Tabungan', 'Tunai', 'GoPay', 'OVO'];
 
+export const mockAccounts = [
+  { id: '1', name: 'BCA Utama',        icon: '🏦', type: 'bank',    balance: 8500000  },
+  { id: '2', name: 'Mandiri Tabungan', icon: '🏦', type: 'bank',    balance: 12300000 },
+  { id: '3', name: 'Tunai',            icon: '💵', type: 'cash',    balance: 750000   },
+  { id: '4', name: 'GoPay',            icon: '🟢', type: 'ewallet', balance: 320000   },
+  { id: '5', name: 'OVO',              icon: '🟣', type: 'ewallet', balance: 185000   },
+];
+
 export const transactions = [
   { id: '1', date: '2024-01-15', type: 'expense', amount: 250000, category: 'Makanan & Minuman', member: 'Ibu', merchant: 'Pasar Minggu', notes: 'Belanja sayur dan lauk', account: 'Tunai' },
   { id: '2', date: '2024-01-15', type: 'expense', amount: 85000, category: 'Transportasi', member: 'Ayah', merchant: 'Pertamina SPBU', notes: 'Isi bensin', account: 'BCA Utama' },
