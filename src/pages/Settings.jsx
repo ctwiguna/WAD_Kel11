@@ -21,7 +21,8 @@ const accIconByType = { bank: '🏦', cash: '💵', ewallet: '📱', invest: '�
 
 const emptyAccForm = { name: '', icon: '🏦', type: 'bank', balance: '' };
 
-export default function Settings() {
+// props → user dari App.jsx dipakai untuk baris profil di atas daftar anggota
+export default function Settings({ user }) {
   const [householdName, setHouseholdName] = useState('Keluarga Budi Santoso');
   const [inviteEmail, setInviteEmail]     = useState('');
   const [saved, setSaved]                 = useState(false);
@@ -118,8 +119,10 @@ export default function Settings() {
     setConfirmDeleteAcc(null);
   };
 
+  // props user dipakai pada baris pertama, nilai bawaan dipakai bila props kosong
   const members = [
-    { id: '1', name: 'Budi Santoso',  role: 'Ayah', email: 'budi@gmail.com', avatar: '👨' },
+    { id: '1', name: user?.name ?? 'Budi Santoso', role: 'Ayah',
+      email: user?.email ?? 'budi@gmail.com', avatar: user?.avatar ?? '👨' },
     { id: '2', name: 'Sari Santoso',  role: 'Ibu',  email: 'sari@gmail.com', avatar: '👩' },
     { id: '3', name: 'Dinda Santoso', role: 'Anak', email: '',               avatar: '🧒' },
   ];

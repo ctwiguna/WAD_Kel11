@@ -27,8 +27,12 @@ export default function Budget() {
   const [showAddForm, setShowAddForm]         = useState(false);
   const [addForm, setAddForm]                 = useState({ category: '', limit: '' });
 
+  // state bulan berjalan, dipakai sebagai deps useFetch di bawah
+  const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
+
   const { data: budgets,      loading: loadBdg, refetch: refetchBdg } = useFetch(getBudgets);
-  const { data: transactions, loading: loadTxn }                       = useFetch(getTransactions);
+  // deps → hook dijalankan ulang setiap bulan berganti, refetch() untuk memuat ulang manual
+  const { data: transactions, loading: loadTxn }                       = useFetch(getTransactions, [period]);
   const { data: categoriesData }                                        = useFetch(getCategories);
 
   track('Budget:render');
@@ -49,8 +53,9 @@ export default function Budget() {
   const usedCategories = new Set(bdgs.map(b => b.category));
   const availableCats  = allCats.filter(c => !usedCategories.has(c.name));
 
-  // spent dihitung dari transaksi, bukan dari data budget statis
-  const spentMap      = hitungSpentPerKategori(txns);
+  // transaksi disaring untuk bulan yang dipilih, lalu spent dihitung dari transaksi itu
+  const txnsBulanIni  = txns.filter(t => t.date.startsWith(period));
+  const spentMap      = hitungSpentPerKategori(txnsBulanIni);
   const bdgsWithSpent = bdgs.map(b => ({ ...b, spent: spentMap[b.category] ?? 0 }));
 
   const totalLimit = bdgsWithSpent.reduce((s, b) => s + b.limit, 0);
@@ -91,11 +96,22 @@ export default function Budget() {
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Keuangan</p>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Anggaran</h1>
         </div>
-        {availableCats.length > 0 && (
-          <Button onClick={() => { setAddForm({ category: availableCats[0].name, limit: '' }); setShowAddForm(true); }}>
-            + Tambah Anggaran
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-slate-500">
+            Bulan
+            <input
+              type="month"
+              value={period}
+              onChange={e => setPeriod(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white"
+            />
+          </label>
+          {availableCats.length > 0 && (
+            <Button onClick={() => { setAddForm({ category: availableCats[0].name, limit: '' }); setShowAddForm(true); }}>
+              + Tambah Anggaran
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Ringkasan total */}
