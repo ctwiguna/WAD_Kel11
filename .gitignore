@@ -437,3 +437,8 @@ dist-ssr
 
 # macOS
 .DS_Store
+
+# Backend Python
+.venv/
+.pytest_cache/
+backend/.env
