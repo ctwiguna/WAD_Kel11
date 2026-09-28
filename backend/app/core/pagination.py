@@ -1,4 +1,4 @@
-# penolong paginasi
+# fungsi bantu paginasi
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
