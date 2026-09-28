@@ -14,10 +14,16 @@ KeluargaFin membantu keluarga (Ayah, Ibu, Anak) mencatat pengeluaran bersama, me
 
 ## Teknologi
 
-- React 19 + Vite
+- Frontend: React 19 + Vite
 - Tailwind CSS 4
 - React Router
-- localStorage: semua data demo tersimpan di browser (belum ada backend)
+- Backend: Python dengan FastAPI
+- Basis data: Supabase, memakai Postgres dan Auth
+- localStorage: menyimpan data demo di browser
+
+## Backend
+
+Backend KeluargaFin dibuat dengan Python dan FastAPI, dengan Supabase sebagai basis data dan layanan autentikasi. Aturan bisnis dan perhitungan ringkasan dikerjakan di backend, sementara frontend hanya menampilkan hasilnya.
 
 ## Catatan
 
