@@ -1,4 +1,4 @@
-# uji penolong paginasi
+# uji fungsi bantu paginasi
 from app.core.pagination import PageParams, build_links, build_meta, list_response
 
 
