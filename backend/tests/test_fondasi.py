@@ -22,7 +22,7 @@ def test_request_id_dibuat_bila_kosong():
     assert len(res.headers["X-Request-Id"]) == 8
 
 
-def test_halaman_tidak_dikenal_memakai_bentuk_galat_standar():
+def test_halaman_tidak_dikenal_memakai_bentuk_error_standar():
     res = client.get("/tidak_ada")
     assert res.status_code == 404
     assert res.json()["error"]["code"] == "NOT_FOUND"

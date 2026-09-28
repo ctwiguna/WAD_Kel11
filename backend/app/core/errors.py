@@ -1,4 +1,4 @@
-# galat terstandar
+# error standar, bentuknya dipakai semua router
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -17,7 +17,7 @@ def unauthenticated() -> AppError:
     return AppError(401, "UNAUTHENTICATED", "Sesi berakhir, silakan masuk kembali.")
 
 
-def forbidden(message: str = "Peran pengguna tidak diizinkan untuk aksi ini.") -> AppError:
+def forbidden(message: str = "Kamu tidak punya izin untuk aksi ini.") -> AppError:
     return AppError(403, "FORBIDDEN", message)
 
 
@@ -25,7 +25,7 @@ def not_found(message: str = "Data tidak ditemukan.") -> AppError:
     return AppError(404, "NOT_FOUND", message)
 
 
-def conflict(message: str = "Data bentrok dengan baris yang sudah ada.") -> AppError:
+def conflict(message: str = "Datanya sudah ada.") -> AppError:
     return AppError(409, "CONFLICT", message)
 
 
@@ -53,7 +53,7 @@ def register_error_handlers(app: FastAPI) -> None:
         ]
         return JSONResponse(
             status_code=400,
-            content=error_body(request, "VALIDATION_ERROR", "Badan permintaan tidak sesuai skema.", details),
+            content=error_body(request, "VALIDATION_ERROR", "Isi permintaan tidak sesuai ketentuan.", details),
         )
 
     @app.exception_handler(StarletteHTTPException)

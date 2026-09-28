@@ -34,7 +34,7 @@ def rest_url(table: str) -> str:
 
 def _cek(res: httpx.Response) -> list:
     if res.status_code >= 400:
-        raise AppError(502, "SUPABASE_ERROR", "Permintaan ke basis data gagal.", [{"status": res.status_code}])
+        raise AppError(502, "SUPABASE_ERROR", "Gagal mengambil data dari basis data.", [{"status": res.status_code}])
     if not res.content:
         return []
     return res.json()

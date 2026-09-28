@@ -37,7 +37,7 @@ Salin `.env.example` menjadi `.env` lalu isi nilainya.
 ```
 app/main.py             titik masuk layanan
 app/core/config.py      pembacaan variabel lingkungan
-app/core/errors.py      bentuk galat standar
+app/core/errors.py      bentuk error standar
 app/core/pagination.py  fungsi bantu paginasi, dipakai semua router
 app/core/supabase_client.py  akses PostgREST
 app/core/deps.py        pemeriksaan token Supabase
