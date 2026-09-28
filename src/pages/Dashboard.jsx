@@ -24,7 +24,8 @@ function StatCard({ label, amount, sub, color }) {
   );
 }
 
-export default function Dashboard() {
+// props → user dikirim dari App.jsx, dipakai untuk sapaan di kepala halaman
+export default function Dashboard({ user }) {
   // useFetch → isi alur deps/refetch
   const { data: transactions, loading: loadTxn, error: errTxn } = useFetch(getTransactions);
   const { data: budgets, loading: loadBudget } = useFetch(getBudgets);
@@ -96,6 +97,9 @@ export default function Dashboard() {
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">{bulanIni}</p>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Ringkasan Bulan Ini</h1>
+        <p className="text-xs text-slate-400 mt-1">
+          Halo, {user?.name ?? 'Budi Santoso'}{user?.household ? ` dari ${user.household}` : ''}
+        </p>
       </div>
 
       {/* Notifikasi anggaran — ternary + map */}
