@@ -1,31 +1,14 @@
-// QuickAdd — modal pilihan metode catat transaksi cepat
+// QuickAdd — modal catat transaksi cepat
+// Pencatatan manual saja, karena kontrak backend tidak menyediakan pindai struk
 
 import { track } from '../utils/analytics';
 
 const methods = [
   {
-    id: 'scan',
-    icon: '📷',
-    label: 'Scan Struk',
-    desc: 'Ambil foto struk belanja untuk dicatat otomatis',
-    bg: '#EFF6FF',
-    color: '#3B82F6',
-    border: '#BFDBFE',
-  },
-  {
-    id: 'gallery',
-    icon: '🖼️',
-    label: 'Upload Galeri',
-    desc: 'Pilih foto struk dari galeri ponselmu',
-    bg: '#F0FDF4',
-    color: '#10B981',
-    border: '#A7F3D0',
-  },
-  {
     id: 'manual',
     icon: '✏️',
     label: 'Input Manual',
-    desc: 'Isi detail transaksi secara langsung',
+    desc: 'Isi pengeluaran, pemasukan, atau transfer secara langsung',
     bg: '#F8FAFC',
     color: '#0F172A',
     border: '#E2E8F0',
@@ -33,14 +16,11 @@ const methods = [
 ];
 
 export default function QuickAdd({ onClose, onNavigate }) {
+  // satu satunya metode yang tersedia, langsung membuka formulir di halaman Transaksi
   const handleMethod = (id) => {
     track('QuickAdd:method', { method: id });
-    if (id === 'manual') {
-      onClose();
-      onNavigate('transactions');
-    } else {
-      alert(`Fitur "${id === 'scan' ? 'Scan Struk' : 'Upload Galeri'}" akan segera hadir!`);
-    }
+    onClose();
+    onNavigate('transactions');
   };
 
   return (
@@ -61,7 +41,7 @@ export default function QuickAdd({ onClose, onNavigate }) {
         <div className="flex items-center justify-between px-6 pt-3 pb-5">
           <div>
             <h2 className="font-bold text-slate-900 text-lg">Catat Transaksi</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Pilih metode pencatatan</p>
+            <p className="text-xs text-slate-400 mt-0.5">Catat pengeluaran, pemasukan, atau transfer</p>
           </div>
           <button
             onClick={onClose}
