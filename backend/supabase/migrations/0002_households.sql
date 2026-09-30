@@ -1,9 +1,6 @@
 -- ============================================================
 -- Migrasi tabel households (rumah tangga)
 -- Penulis: Nizar Hermawan
--- Dipasang setelah 0001_profiles.sql
--- Kebijakan RLS households ditulis di 0003_household_members.sql
--- karena aturannya bergantung pada tabel household_members.
 -- ============================================================
 
 create table if not exists public.households (
@@ -21,6 +18,5 @@ create index if not exists idx_households_owner
     on public.households (owner_user_id)
     where deleted_at is null;
 
--- RLS aktif sejak awal. Tanpa kebijakan, semua akses ditolak
--- sampai kebijakan dipasang pada migrasi berikutnya.
 alter table public.households enable row level security;
+
