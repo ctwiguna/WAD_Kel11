@@ -1,19 +1,20 @@
 -- ============================================================
 -- Migrasi tabel household_members (anggota rumah tangga)
 -- Penulis: Nizar Hermawan
--- Dipasang setelah 0002_households.sql
--- Berisi: tabel anggota, fungsi bantu RLS, kebijakan RLS untuk
--- household_members dan households, serta trigger yang menjadikan
--- pembuat rumah tangga sebagai anggota berperan ayah.
 -- ============================================================
 
--- peran anggota
+-- 1. Buat skema private untuk fungsi bantu RLS
+create schema if not exists private;
+revoke all on schema private from public;
+
+-- 2. Enum peran anggota
 do $$ begin
     create type member_role as enum ('ayah', 'ibu', 'anak');
 exception
     when duplicate_object then null;
 end $$;
 
+-- 3. Tabel household_members
 create table if not exists public.household_members (
     id                 uuid primary key default gen_random_uuid(),
     household_id       uuid not null references public.households(id) on delete cascade,
@@ -22,7 +23,6 @@ create table if not exists public.household_members (
     display_name       varchar(60) not null,
     can_approve_budget boolean not null default false,
     joined_at          timestamptz not null default now(),
-    -- satu pengguna hanya satu kali menjadi anggota pada rumah tangga yang sama
     unique (household_id, user_id)
 );
 
@@ -32,13 +32,9 @@ create index if not exists idx_household_members_user
 alter table public.household_members enable row level security;
 
 -- ------------------------------------------------------------
--- Fungsi bantu RLS.
--- security definer membuat pembacaan household_members di dalam
--- fungsi tidak memicu kebijakan tabel itu lagi, sehingga tidak ada
--- rekursi tak terbatas saat kebijakan household_members merujuk
--- tabelnya sendiri.
+-- Fungsi bantu RLS (Dipindah ke skema private)
 -- ------------------------------------------------------------
-create or replace function public.is_household_member(p_household_id uuid)
+create or replace function private.is_household_member(p_household_id uuid)
 returns boolean
 language sql
 stable
@@ -52,7 +48,7 @@ as $$
     );
 $$;
 
-create or replace function public.household_role(p_household_id uuid)
+create or replace function private.household_role(p_household_id uuid)
 returns member_role
 language sql
 stable
@@ -67,44 +63,35 @@ $$;
 
 -- ------------------------------------------------------------
 -- Kebijakan household_members
--- baca: semua anggota rumah tangga; tulis: hanya ayah
 -- ------------------------------------------------------------
 drop policy if exists anggota_baca on public.household_members;
 create policy anggota_baca on public.household_members
     for select
-    using (public.is_household_member(household_id));
+    using (private.is_household_member(household_id));
 
 drop policy if exists anggota_tambah on public.household_members;
 create policy anggota_tambah on public.household_members
     for insert
-    with check (public.household_role(household_id) = 'ayah');
+    with check (private.household_role(household_id) = 'ayah');
 
 drop policy if exists anggota_ubah on public.household_members;
 create policy anggota_ubah on public.household_members
     for update
-    using (public.household_role(household_id) = 'ayah')
-    with check (public.household_role(household_id) = 'ayah');
+    using (private.household_role(household_id) = 'ayah')
+    with check (private.household_role(household_id) = 'ayah');
 
 drop policy if exists anggota_hapus on public.household_members;
 create policy anggota_hapus on public.household_members
     for delete
-    using (public.household_role(household_id) = 'ayah');
+    using (private.household_role(household_id) = 'ayah');
 
 -- ------------------------------------------------------------
 -- Kebijakan households
--- baca: pemilik atau anggota (pemilik disertakan supaya hasil INSERT
---       ... RETURNING lolos sebelum trigger anggota berjalan)
--- tambah: hanya untuk dirinya sendiri sebagai pemilik
--- ubah: hanya ayah, termasuk penghapusan lunak lewat deleted_at
--- hapus permanen: tidak ada kebijakan, jadi ditolak
--- Penyaringan deleted_at dilakukan di API, bukan di RLS, karena
--- kebijakan baca yang menyaring deleted_at membuat UPDATE penghapusan
--- lunak gagal saat baris baru diperiksa.
 -- ------------------------------------------------------------
 drop policy if exists rumah_baca on public.households;
 create policy rumah_baca on public.households
     for select
-    using (owner_user_id = auth.uid() or public.is_household_member(id));
+    using (owner_user_id = auth.uid() or private.is_household_member(id));
 
 drop policy if exists rumah_tambah on public.households;
 create policy rumah_tambah on public.households
@@ -114,13 +101,11 @@ create policy rumah_tambah on public.households
 drop policy if exists rumah_ubah on public.households;
 create policy rumah_ubah on public.households
     for update
-    using (public.household_role(id) = 'ayah')
-    with check (public.household_role(id) = 'ayah');
+    using (private.household_role(id) = 'ayah')
+    with check (private.household_role(id) = 'ayah');
 
 -- ------------------------------------------------------------
--- Pembuat rumah tangga otomatis menjadi anggota berperan ayah,
--- sehingga tidak terjadi kebuntuan: hanya ayah yang boleh menambah
--- anggota, tetapi rumah tangga baru belum punya ayah.
+-- Trigger otomatis: Pembuat rumah tangga jadi anggota 'ayah'
 -- ------------------------------------------------------------
 create or replace function public.tambah_pemilik_sebagai_ayah()
 returns trigger
@@ -147,3 +132,5 @@ drop trigger if exists trg_tambah_pemilik_sebagai_ayah on public.households;
 create trigger trg_tambah_pemilik_sebagai_ayah
     after insert on public.households
     for each row execute function public.tambah_pemilik_sebagai_ayah();
+
+    
