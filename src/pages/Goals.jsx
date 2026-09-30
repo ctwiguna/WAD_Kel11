@@ -137,7 +137,7 @@ export default function Goals() {
                 </div>
 
                 {!done && (
-                  <Button variant="outline" fullWidth className="text-xs !py-2" onClick={() => setShowContrib(goal.id)}>
+                  <Button variant="outline" fullWidth className="text-xs py-2!" onClick={() => setShowContrib(goal.id)}>
                     + Tambah Dana
                   </Button>
                 )}
