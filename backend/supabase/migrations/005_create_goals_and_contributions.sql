@@ -1,7 +1,7 @@
 -- ============================================================
 -- Migrasi Tabel: goals & goal_contributions
 -- Penulis: Arjuna Rangga Lengkey
--- Revisi: Penyesuaian Kontrak API, Tipe Data BIGINT & Kebijakan RLS
+-- Revisi: Penyesuaian Kontrak API (Tipe BIGINT, RLS, deadline, status)
 -- ============================================================
 
 -- 1. Tipe ENUM untuk Status Goals
