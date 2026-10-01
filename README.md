@@ -22,7 +22,3 @@ KeluargaFin membantu keluarga (Ayah, Ibu, Anak) mencatat pengeluaran bersama, me
 - Frontend hanya untuk rendering, tidak menghitung apa pun
 - Seluruh aturan bisnis dan perhitungan ada di backend
 
-## Catatan
-
-- Data disimpan di localStorage browser, ganti browser atau hapus data berarti mulai dari awal.
-- Upload bukti + OCR, Goals, dan Laporan dijadwalkan pada perbaikan berikutnya.
