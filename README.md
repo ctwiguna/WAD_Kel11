@@ -19,6 +19,8 @@ KeluargaFin membantu keluarga (Ayah, Ibu, Anak) mencatat pengeluaran bersama, me
 - React Router
 - Backend: Python FastAPI dan Supabase
 - localStorage: data demo tersimpan di browser
+- Frontend hanya untuk rendering, tidak menghitung apa pun
+- Seluruh aturan bisnis dan perhitungan ada di backend
 
 ## Catatan
 
