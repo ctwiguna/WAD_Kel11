@@ -17,7 +17,8 @@ KeluargaFin membantu keluarga (Ayah, Ibu, Anak) mencatat pengeluaran bersama, me
 - React 19 + Vite
 - Tailwind CSS 4
 - React Router
-- localStorage: semua data demo tersimpan di browser (belum ada backend)
+- Backend: Python FastAPI dan Supabase
+- localStorage: data demo tersimpan di browser
 
 ## Catatan
 
