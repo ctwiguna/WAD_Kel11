@@ -169,38 +169,5 @@ async def rekap_anggota(token: str, household_id: str, dari: str, sampai: str) -
     return hasil
 
 
-def _aman(nilai) -> str:
-    """Bungkus nilai CSV yang memuat koma, tanda kutip, atau baris baru."""
-    teks = "" if nilai is None else str(nilai)
-    if any(x in teks for x in (",", '"', "\n")):
-        return '"' + teks.replace('"', '""') + '"'
-    return teks
+# pembuatan berkas CSV ada di berkas terpisah, yaitu services/export_service.py
 
-
-async def berkas_csv(token: str, household_id: str, dari: str, sampai: str) -> str:
-    """Berkas CSV transaksi, dibuat backend, siap diunduh pengguna."""
-    baris = await transaksi_rentang(token, household_id, dari, sampai)
-    kategori = await rest_select("categories", {"household_id": f"eq.{household_id}", "select": "id,name"}, token)
-    anggota = await rest_select(
-        "household_members", {"household_id": f"eq.{household_id}", "select": "id,display_name"}, token
-    )
-    nama_kategori = {k["id"]: k["name"] for k in kategori}
-    nama_anggota = {a["id"]: a["display_name"] for a in anggota}
-
-    tajuk = "tanggal,jenis,kategori,anggota,merchant,catatan,nominal"
-    isi = [tajuk]
-    for b in baris:
-        isi.append(
-            ",".join(
-                [
-                    _aman(b.get("txn_date")),
-                    _aman(b.get("type")),
-                    _aman(nama_kategori.get(b.get("category_id"), "")),
-                    _aman(nama_anggota.get(b.get("member_id"), "")),
-                    _aman(b.get("merchant")),
-                    _aman(b.get("notes")),
-                    _aman(b.get("amount")),
-                ]
-            )
-        )
-    return "\n".join(isi) + "\n"

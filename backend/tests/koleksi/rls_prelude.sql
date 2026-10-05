@@ -5,4 +5,4 @@ create table if not exists auth.users (id uuid primary key, email text, raw_user
 create or replace function auth.uid() returns uuid language sql stable as
 $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
-do $$ begin create domain citext as text; exception when duplicate_object then null; end $$;
+-- tipe citext dibuat migrasi 0001 lewat create extension, jadi tidak dibuat di sini

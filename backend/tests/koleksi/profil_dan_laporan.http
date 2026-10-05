@@ -1,0 +1,60 @@
+# Koleksi permintaan uji /profiles dan endpoint laporan (REST Client VS Code / IntelliJ HTTP Client)
+# Penulis: Chandra TW
+# Isi token ayah dan anak dari Supabase Auth sebelum dipakai.
+@base = http://localhost:8000/api/v1
+@rt = <household_id>
+@tokenAyah = <access_token_ayah>
+@tokenAnak = <access_token_anak>
+
+### 401 tanpa token
+GET {{base}}/profiles/me
+
+### Profil sendiri
+GET {{base}}/profiles/me
+Authorization: Bearer {{tokenAyah}}
+
+### Ubah nama tampilan sendiri (200)
+PATCH {{base}}/profiles/me
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "full_name": "Budi Santoso" }
+
+### Ubah dengan badan kosong (400)
+PATCH {{base}}/profiles/me
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{}
+
+### Ringkasan dashboard bulan berjalan (semua peran)
+GET {{base}}/dashboard/summary?household_id={{rt}}
+Authorization: Bearer {{tokenAyah}}
+
+### Ringkasan dashboard oleh anak (tetap 200)
+GET {{base}}/dashboard/summary?household_id={{rt}}
+Authorization: Bearer {{tokenAnak}}
+
+### Arus kas (ayah dan ibu)
+GET {{base}}/reports/cashflow?household_id={{rt}}&from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{tokenAyah}}
+
+### Arus kas oleh anak (403)
+GET {{base}}/reports/cashflow?household_id={{rt}}
+Authorization: Bearer {{tokenAnak}}
+
+### Laporan rumah tangga lain (403)
+GET {{base}}/reports/cashflow?household_id=<household_id_rumah_tangga_lain>
+Authorization: Bearer {{tokenAyah}}
+
+### Rekap kategori
+GET {{base}}/reports/categories?household_id={{rt}}&from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{tokenAyah}}
+
+### Rekap anggota
+GET {{base}}/reports/members?household_id={{rt}}&from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{tokenAyah}}
+
+### Ekspor CSV
+GET {{base}}/reports/export.csv?household_id={{rt}}&from=2026-10-01&to=2026-10-31
+Authorization: Bearer {{tokenAyah}}
