@@ -6,7 +6,7 @@ from fastapi.responses import Response
 
 from app.core.deps import get_access_token, get_current_user
 from app.core.errors import forbidden
-from app.services import report_service as layanan
+from app.services import export_service, report_service as layanan
 
 router = APIRouter(tags=["ringkasan dan laporan"])
 
@@ -96,7 +96,7 @@ async def ekspor_transaksi(
     """Unduh transaksi sebagai berkas CSV yang dibuat backend."""
     await _wajib_peran_laporan(household_id, user, token)
     awal, akhir = _rentang_default(dari, sampai)
-    teks = await layanan.berkas_csv(token, household_id, awal, akhir)
+    teks = await export_service.berkas_csv(token, household_id, awal, akhir)
     return Response(
         content=teks,
         media_type="text/csv; charset=utf-8",
