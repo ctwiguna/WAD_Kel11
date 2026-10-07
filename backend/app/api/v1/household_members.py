@@ -1,5 +1,10 @@
 # router /household_members: terima permintaan, panggil service, kembalikan respons
 # Penulis: Nizar Hermawan
+#
+# Pola yang dipakai sama seperti households.py. Bedanya, endpoint tulis hanya
+# berguna bagi anggota berperan ayah, dan penegakannya ada di dua lapisan:
+# FastAPI memeriksa lebih dulu supaya pesannya ramah, lalu kebijakan RLS di
+# database tetap menolak bila pemeriksaan itu dilewati.
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
@@ -40,6 +45,7 @@ async def peran_pengguna(household_id: str, user: dict, token: str) -> str | Non
 
 
 async def wajib_boleh_tulis(household_id: str, user: dict, token: str) -> None:
+    """Memastikan pengguna adalah anggota dan memiliki peran yang diizinkan (Ayah)."""
     peran = await peran_pengguna(household_id, user, token)
     if peran is None:
         raise forbidden("Kamu bukan anggota rumah tangga itu.")
@@ -70,6 +76,7 @@ async def satu_anggota(
     user: dict = Depends(get_current_user),
     token: str = Depends(get_access_token),
 ) -> dict:
+    """Detail satu anggota rumah tangga."""
     baris = await rest_select("household_members", {"id": f"eq.{id}", "select": KOLOM, "limit": 1}, token)
     if not baris:
         raise not_found("Anggota tidak ditemukan.")
@@ -98,14 +105,20 @@ async def ubah_anggota(
     token: str = Depends(get_access_token),
 ) -> dict:
     """Mengubah peran, nama tampilan, atau izin menyetujui anggaran. Hanya ayah."""
+    # PERBAIKAN: Penjagaan bila hasil ubah kosong supaya tidak muncul error 500
     perubahan = payload.model_dump(exclude_none=True)
     if not perubahan:
         raise AppError(400, "VALIDATION_ERROR", "Tidak ada kolom yang diubah.")
+        
     baris = await rest_select("household_members", {"id": f"eq.{id}", "select": "household_id", "limit": 1}, token)
     if not baris:
         raise not_found("Anggota tidak ditemukan.")
+        
     await wajib_boleh_tulis(baris[0]["household_id"], user, token)
     hasil = await rest_patch("household_members", {"id": f"eq.{id}"}, perubahan, token)
+    
+    if not hasil:
+        raise not_found("Anggota tidak ditemukan atau perubahan ditolak.")
     return {"data": hasil[0]}
 
 
@@ -119,6 +132,7 @@ async def keluarkan_anggota(
     baris = await rest_select("household_members", {"id": f"eq.{id}", "select": "household_id", "limit": 1}, token)
     if not baris:
         raise not_found("Anggota tidak ditemukan.")
+        
     await wajib_boleh_tulis(baris[0]["household_id"], user, token)
     hasil = await rest_delete("household_members", {"id": f"eq.{id}"}, token)
     return {"data": hasil[0] if hasil else {"id": id}}
