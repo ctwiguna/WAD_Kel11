@@ -61,7 +61,6 @@ async def get_goals(
             },
         }
 
-    # Optimasi: Ambil seluruh setoran sekaligus untuk menghindari N+1 Query
     goal_ids = [str(g["id"]) for g in goals]
     contrib_params = {"goal_id": f"in.({','.join(goal_ids)})"}
     all_contribs = await rest_select("goal_contributions", contrib_params, token)
@@ -114,7 +113,8 @@ async def create_goal(
     current_user: dict = Depends(get_current_user),
     token: str = Depends(get_access_token),
 ):
-    body = payload.model_dump(mode="json")
+    # Menggunakan exclude_none=True agar field bertipe None tidak dikirim ke DB
+    body = payload.model_dump(exclude_none=True, mode="json")
     res = await rest_insert("goals", body, token)
     if not res:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Gagal membuat goal")
@@ -128,7 +128,7 @@ async def update_goal(
     current_user: dict = Depends(get_current_user),
     token: str = Depends(get_access_token),
 ):
-    body = payload.model_dump(exclude_unset=True, mode="json")
+    body = payload.model_dump(exclude_unset=True, exclude_none=True, mode="json")
     if not body:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tidak ada data untuk diperbarui")
 
@@ -213,7 +213,7 @@ async def create_contribution(
     current_user: dict = Depends(get_current_user),
     token: str = Depends(get_access_token),
 ):
-    body = payload.model_dump(mode="json")
+    body = payload.model_dump(exclude_none=True, mode="json")
     res = await rest_insert("goal_contributions", body, token)
     if not res:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Gagal menambahkan setoran")
@@ -227,7 +227,7 @@ async def update_contribution(
     current_user: dict = Depends(get_current_user),
     token: str = Depends(get_access_token),
 ):
-    body = payload.model_dump(exclude_unset=True, mode="json")
+    body = payload.model_dump(exclude_unset=True, exclude_none=True, mode="json")
     if not body:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tidak ada data untuk diperbarui")
 
