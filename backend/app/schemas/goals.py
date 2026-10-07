@@ -10,7 +10,7 @@ class GoalCreate(BaseModel):
     deadline: Optional[str] = None
     icon: Optional[str] = None
     color: Optional[str] = None
-    status: Optional[str] = "in_progress"
+    status: Optional[str] = "active"  # Perbaikan: Diubah dari "in_progress" menjadi "active"
 
 
 class GoalUpdate(BaseModel):
