@@ -1,0 +1,42 @@
+### Variabel Lingkungan
+@baseUrl = http://localhost:8000/api/v1
+@token_ayah = token-uji-ayah
+@token_ibu = token-uji-ibu
+@household_id = id-rumah-ayah
+@member_id = id-anggota-ibu
+
+### 1. Uji 401: Tanpa Token
+GET {{baseUrl}}/household_members?household_id={{household_id}}
+Authorization: Bearer 
+
+### 2. Uji 200: Daftar Anggota (Dengan Token Ayah)
+GET {{baseUrl}}/household_members?household_id={{household_id}}
+Authorization: Bearer {{token_ayah}}
+
+### 3. Uji 201: Tambah Anggota (Oleh Ayah)
+POST {{baseUrl}}/household_members
+Authorization: Bearer {{token_ayah}}
+Content-Type: application/json
+
+{
+  "household_id": "{{household_id}}",
+  "user_id": "user-baru-id",
+  "role": "anak",
+  "display_name": "Anak Baru"
+}
+
+### 4. Uji 403: Tambah Anggota oleh BUKAN Ayah (Misal: Ibu)
+POST {{baseUrl}}/household_members
+Authorization: Bearer {{token_ibu}}
+Content-Type: application/json
+
+{
+  "household_id": "{{household_id}}",
+  "user_id": "user-baru-lagi-id",
+  "role": "anak",
+  "display_name": "Anak Baru Lagi"
+}
+
+### 5. Uji 200: Hapus Anggota (Oleh Ayah)
+DELETE {{baseUrl}}/household_members/{{member_id}}
+Authorization: Bearer {{token_ayah}}
