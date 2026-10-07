@@ -82,6 +82,11 @@ async def ubah_rumah(
     perubahan = payload.model_dump(exclude_none=True)
     if not perubahan:
         raise AppError(400, "VALIDATION_ERROR", "Tidak ada kolom yang diubah.")
+    peran = await rest_select("household_members", {"household_id": f"eq.{id}", "user_id": f"eq.{user.get('sub')}", "select": "role", "limit": 1}, token)
+    if not peran or peran[0]["role"] != "ayah":
+        from app.core.errors import forbidden
+        raise forbidden("Hanya ayah yang boleh mengubah pengaturan rumah tangga.")
+
     baris = await rest_patch("households", {"id": f"eq.{id}"}, perubahan, token)
     if not baris:
         raise not_found("Rumah tangga tidak ditemukan.")

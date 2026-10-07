@@ -150,3 +150,57 @@ def test_nama_terlalu_pendek_ditolak(masuk):
     
     # TAMBAHAN: Pastikan kode error-nya sesuai format tim
     assert res.json()["error"]["code"] == "VALIDATION_ERROR"
+
+# ==========================================================
+# PENGUJIAN UNTUK /household_members (Tambahan sesuai request)
+# ==========================================================
+
+def test_tambah_anggota_tanpa_token_ditolak():
+    res = client.post("/api/v1/household_members", json={"household_id": "rumah-123", "user_id": "user-baru", "role": "anak", "display_name": "Budi"})
+    assert res.status_code == 401
+
+def test_daftar_anggota_berhasil(masuk, monkeypatch):
+    async def palsu(table, params, token):
+        return [ANGGOTA_BARIS]
+    monkeypatch.setattr(households, "rest_select", palsu) # Sesuaikan import jika perlu
+    
+    # Kita mock endpoint members, pastikan import household_members di atas file
+    from app.api.v1 import household_members
+    monkeypatch.setattr(household_members, "rest_select", palsu)
+    monkeypatch.setattr(household_members, "rest_hitung", lambda *args: 1)
+    
+    res = client.get("/api/v1/household_members?household_id=rumah-123")
+    assert res.status_code == 200
+
+def test_tambah_anggota_oleh_ayah_berhasil(masuk, monkeypatch):
+    from app.api.v1 import household_members
+    async def palsu_insert(table, payload, token):
+        return [{**ANGGOTA_BARIS, "user_id": payload["user_id"]}]
+    
+    monkeypatch.setattr(household_members, "rest_select", lambda *args: [{"role": "ayah"}]) # Mock peran ayah
+    monkeypatch.setattr(household_members, "rest_insert", palsu_insert)
+    
+    payload = {"household_id": "rumah-123", "user_id": "user-baru", "role": "anak", "display_name": "Budi"}
+    res = client.post("/api/v1/household_members", json=payload)
+    assert res.status_code == 201
+
+def test_tambah_anggota_oleh_ibu_ditolak_403(masuk, monkeypatch):
+    from app.api.v1 import household_members
+    # Mock bahwa user yang login adalah 'ibu', bukan 'ayah'
+    monkeypatch.setattr(household_members, "rest_select", lambda *args: [{"role": "ibu"}])
+    
+    payload = {"household_id": "rumah-123", "user_id": "user-baru", "role": "anak", "display_name": "Budi"}
+    res = client.post("/api/v1/household_members", json=payload)
+    assert res.status_code == 403
+    assert res.json()["error"]["code"] == "FORBIDDEN"
+
+def test_detail_anggota_rumah_lain_dijawab_404(masuk, monkeypatch):
+    from app.api.v1 import household_members
+    # Mock mengembalikan kosong (seolah-olah anggota ini bukan dari rumah user yang login)
+    monkeypatch.setattr(household_members, "rest_select", lambda *args: [])
+    
+    res = client.get("/api/v1/household_members/anggota-rumah-lain")
+    assert res.status_code == 404
+    assert res.json()["error"]["code"] == "NOT_FOUND"
+
+

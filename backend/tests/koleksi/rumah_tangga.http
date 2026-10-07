@@ -1,0 +1,40 @@
+### Variabel Lingkungan (Sesuaikan dengan token uji tim kamu)
+@baseUrl = http://localhost:8000/api/v1
+@token = token-uji-ayah
+@token_ibu = token-uji-ibu
+@token_anak = token-uji-anak
+@household_id = id-rumah-ayah
+@member_id = id-anggota-ayah
+
+### 1. Uji 401: Tanpa Token
+GET {{baseUrl}}/households
+Authorization: Bearer 
+
+### 2. Uji 200: Daftar Rumah Tangga (Dengan Token)
+GET {{baseUrl}}/households
+Authorization: Bearer {{token}}
+
+### 3. Uji 201: Tambah Rumah Tangga
+POST {{baseUrl}}/households
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Keluarga Uji Baru",
+  "currency": "IDR",
+  "monthly_start_day": 1
+}
+
+### 4. Uji 403: Ubah Rumah Tangga oleh BUKAN Ayah (Misal: Ibu/Anak)
+PATCH {{baseUrl}}/households/{{household_id}}
+Authorization: Bearer {{token_ibu}}
+Content-Type: application/json
+
+{
+  "name": "Nama yang Diubah Ibu"
+}
+
+### 5. Uji 200: Hapus Rumah Tangga (Soft Delete oleh Ayah)
+DELETE {{baseUrl}}/households/{{household_id}}
+Authorization: Bearer {{token}}
+
