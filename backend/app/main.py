@@ -4,7 +4,7 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import accounts, categories, household_members, households, profiles, reports
+from app.api.v1 import accounts, budgets, categories, household_members, households, profiles, reports, transactions
 from app.api.v1.goals import contributions_router, goals_router
 from app.core.config import get_settings
 from app.core.errors import register_error_handlers
@@ -44,6 +44,8 @@ app.include_router(households.router, prefix=settings.api_prefix)
 app.include_router(household_members.router, prefix=settings.api_prefix)
 app.include_router(goals_router, prefix=settings.api_prefix)
 app.include_router(contributions_router, prefix=settings.api_prefix)
+app.include_router(transactions.router, prefix=settings.api_prefix)
+app.include_router(budgets.router, prefix=settings.api_prefix)
 
 
 @app.get("/health", tags=["layanan"])

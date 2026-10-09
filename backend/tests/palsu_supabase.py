@@ -7,14 +7,19 @@ from app.core.errors import AppError
 from app.main import app
 from app.repositories import accounts as repo_akun
 from app.repositories import anggota as repo_anggota
+from app.repositories import budgets as repo_anggaran
 from app.repositories import categories as repo_kategori
+from app.repositories import transactions as repo_transaksi
 
 RT, RT_LAIN = "rt-1", "rt-2"
 
 
-def _cocok(baris: dict, kunci: str, nilai: str) -> bool:
+def _cocok(baris: dict, kunci: str, nilai) -> bool:
     if kunci in ("select", "order", "limit", "offset"):
         return True
+    if isinstance(nilai, list):
+        # dua penyaring pada satu kolom, misal txn_date gte dan lte
+        return all(_cocok(baris, kunci, v) for v in nilai)
     if kunci == "or":
         isi = nilai.strip("()")
         if "household_id.is.null" in isi:
@@ -34,6 +39,10 @@ def _cocok(baris: dict, kunci: str, nilai: str) -> bool:
         return str(nyata) != v
     if op == "is":
         return nyata is None
+    if op == "in":
+        return str(nyata) in v.strip("()").split(",")
+    if op in ("gte", "lte"):
+        return str(nyata or "") >= v if op == "gte" else str(nyata or "") <= v
     raise AssertionError(f"operator tidak dikenal {nilai}")
 
 
@@ -103,11 +112,10 @@ def db(monkeypatch):
     app.dependency_overrides[get_access_token] = lambda: "token-uji"
     p = Palsu()
     monkeypatch.setattr(repo_anggota, "rest_select", p.select)
-    for modul in (repo_akun, repo_kategori):
-        monkeypatch.setattr(modul, "rest_select", p.select)
-        monkeypatch.setattr(modul, "rest_hitung", p.hitung)
-        monkeypatch.setattr(modul, "rest_insert", p.insert)
-        monkeypatch.setattr(modul, "rest_patch", p.patch)
-        monkeypatch.setattr(modul, "rest_delete", p.delete)
+    for modul in (repo_akun, repo_kategori, repo_transaksi, repo_anggaran):
+        for nama, fungsi in (("rest_select", p.select), ("rest_hitung", p.hitung), ("rest_insert", p.insert),
+                             ("rest_patch", p.patch), ("rest_delete", p.delete)):
+            # transaksi memakai hapus lunak, jadi modulnya tidak memakai rest_delete
+            monkeypatch.setattr(modul, nama, fungsi, raising=False)
     yield p
     app.dependency_overrides.clear()
