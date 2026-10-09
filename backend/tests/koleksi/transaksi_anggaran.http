@@ -1,0 +1,156 @@
+# Koleksi permintaan uji /transactions dan /budgets (REST Client VS Code / IntelliJ HTTP Client)
+# Cadangan disiapkan tim pada 8 Oktober 2026 supaya sesuai timeline.
+# Isi token dari Supabase Auth sebelum dipakai, satu untuk Ayah dan satu untuk Anak.
+@base = http://localhost:8000/api/v1
+@rt = <household_id>
+@dompet = <account_id>
+@dompet2 = <account_id_tujuan>
+@kategori = <category_id>
+@anggota = <member_id>
+@tokenAyah = <access_token_ayah>
+@tokenAnak = <access_token_anak>
+
+### 401 tanpa token
+GET {{base}}/transactions?household_id={{rt}}
+
+### Daftar transaksi beserta meta.total_amount
+GET {{base}}/transactions?household_id={{rt}}&page=1&per_page=20&sort=txn_date:desc
+Authorization: Bearer {{tokenAyah}}
+
+### Daftar transaksi tersaring jenis, kategori, anggota, dan rentang tanggal
+GET {{base}}/transactions?household_id={{rt}}&type=expense&category_id={{kategori}}&member_id={{anggota}}&from=2026-09-01&to=2026-09-30
+Authorization: Bearer {{tokenAyah}}
+
+### Detail transaksi
+GET {{base}}/transactions/<txn_id>
+Authorization: Bearer {{tokenAyah}}
+
+### Tambah pengeluaran (201)
+POST {{base}}/transactions
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "account_id": "{{dompet}}", "category_id": "{{kategori}}", "member_id": "{{anggota}}",
+  "type": "expense", "amount": 45000, "txn_date": "2026-09-21", "merchant": "Kopi Kenangan" }
+
+### Tambah pemasukan (201)
+POST {{base}}/transactions
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "account_id": "{{dompet}}", "category_id": "{{kategori}}", "member_id": "{{anggota}}",
+  "type": "income", "amount": 8500000, "txn_date": "2026-09-25", "notes": "Gaji bulan September" }
+
+### Tambah transfer antar dompet (201)
+POST {{base}}/transactions
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "account_id": "{{dompet}}", "to_account_id": "{{dompet2}}", "member_id": "{{anggota}}",
+  "type": "transfer", "amount": 250000, "txn_date": "2026-09-26" }
+
+### Tambah oleh anak (201)
+POST {{base}}/transactions
+Authorization: Bearer {{tokenAnak}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "account_id": "{{dompet}}", "category_id": "{{kategori}}", "member_id": "{{anggota}}",
+  "type": "expense", "amount": 15000, "txn_date": "2026-09-27", "merchant": "Kantin" }
+
+### Tambah transfer tanpa dompet tujuan (400)
+POST {{base}}/transactions
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "account_id": "{{dompet}}", "member_id": "{{anggota}}",
+  "type": "transfer", "amount": 50000, "txn_date": "2026-09-27" }
+
+### Tambah dengan nilai tidak sah (400)
+POST {{base}}/transactions
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "account_id": "{{dompet}}", "member_id": "{{anggota}}",
+  "type": "expense", "amount": 0, "txn_date": "27-09-2026" }
+
+### Ubah catatan oleh Ayah (200)
+PATCH {{base}}/transactions/<txn_id>
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "amount": 52000, "merchant": "Kopi Kenangan" }
+
+### Ubah catatan milik anggota lain oleh anak (403)
+PATCH {{base}}/transactions/<txn_id_milik_ayah>
+Authorization: Bearer {{tokenAnak}}
+Content-Type: application/json
+
+{ "amount": 1000 }
+
+### Batalkan catatan, diisi deleted_at (200)
+DELETE {{base}}/transactions/<txn_id>
+Authorization: Bearer {{tokenAyah}}
+
+### Kembali ke daftar, baris yang dibatalkan tidak muncul lagi
+GET {{base}}/transactions?household_id={{rt}}
+Authorization: Bearer {{tokenAyah}}
+
+### Sortir tidak dikenal (400)
+GET {{base}}/transactions?household_id={{rt}}&sort=merchant:asc
+Authorization: Bearer {{tokenAyah}}
+
+# ---------------------------------------------------------------- anggaran
+
+### Daftar anggaran beserta spent, remaining, usage_percent, dan status
+GET {{base}}/budgets?household_id={{rt}}&period_month=2026-09-01
+Authorization: Bearer {{tokenAyah}}
+
+### Daftar anggaran oleh anak tetap boleh (200)
+GET {{base}}/budgets?household_id={{rt}}
+Authorization: Bearer {{tokenAnak}}
+
+### Tambah anggaran (201)
+POST {{base}}/budgets
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "category_id": "{{kategori}}", "period_month": "2026-09-01", "limit_amount": 500000 }
+
+### Tambah anggaran ganda pada bulan yang sama (409)
+POST {{base}}/budgets
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "category_id": "{{kategori}}", "period_month": "2026-09-01", "limit_amount": 900000 }
+
+### Tambah anggaran oleh anak (403)
+POST {{base}}/budgets
+Authorization: Bearer {{tokenAnak}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "category_id": "{{kategori}}", "period_month": "2026-10-01", "limit_amount": 100000 }
+
+### Tambah anggaran dengan periode bukan awal bulan (400)
+POST {{base}}/budgets
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "household_id": "{{rt}}", "category_id": "{{kategori}}", "period_month": "2026-09-15", "limit_amount": 100000 }
+
+### Ubah batas anggaran (200)
+PATCH {{base}}/budgets/<budget_id>
+Authorization: Bearer {{tokenAyah}}
+Content-Type: application/json
+
+{ "limit_amount": 650000 }
+
+### Ubah batas oleh anak (403)
+PATCH {{base}}/budgets/<budget_id>
+Authorization: Bearer {{tokenAnak}}
+Content-Type: application/json
+
+{ "limit_amount": 10000 }
+
+### Hapus anggaran (200)
+DELETE {{base}}/budgets/<budget_id>
+Authorization: Bearer {{tokenAyah}}
