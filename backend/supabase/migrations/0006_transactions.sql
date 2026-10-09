@@ -3,8 +3,7 @@
 -- Penulis: Apri Kuncoro
 -- Dipasang setelah households, household_members, accounts, dan
 -- categories (0002, 0003, 0004, 0005).
--- Cadangan disiapkan tim pada 4 Oktober 2026 supaya tonggak minggu
--- pertama tidak tertunda.
+-- Cadangan disiapkan tim pada 4 Oktober 2026 supaya sesuai timeline.
 -- Transfer antar dompet memakai kolom to_account_id dan tetap satu baris.
 -- ============================================================
 

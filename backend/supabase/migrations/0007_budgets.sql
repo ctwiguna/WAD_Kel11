@@ -3,8 +3,7 @@
 -- Penulis: Apri Kuncoro
 -- Dipasang setelah households, categories, dan transactions
 -- (0002, 0005, 0006).
--- Cadangan disiapkan tim pada 4 Oktober 2026 supaya tonggak minggu
--- pertama tidak tertunda.
+-- Cadangan disiapkan tim pada 4 Oktober 2026 supaya sesuai timeline.
 -- Satu kategori hanya punya satu anggaran per bulan, dijaga batasan unik.
 -- Batas pemakaian dan sisanya dihitung backend saat data dibaca.
 -- ============================================================
