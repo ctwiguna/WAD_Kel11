@@ -18,7 +18,9 @@ async def berkas_csv(token: str, household_id: str, dari: str, sampai: str) -> s
     """Berkas CSV transaksi, dibuat backend, siap diunduh pengguna."""
     baris = await report_service.transaksi_rentang(token, household_id, dari, sampai)
     kategori = await report_service.rest_select(
-        "categories", {"household_id": f"eq.{household_id}", "select": "id,name"}, token
+        "categories",
+        {**report_service.saring_kategori_terlihat(household_id), "select": "id,name"},
+        token,
     )
     anggota = await report_service.rest_select(
         "household_members", {"household_id": f"eq.{household_id}", "select": "id,display_name"}, token

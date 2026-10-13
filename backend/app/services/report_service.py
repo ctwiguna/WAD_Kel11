@@ -7,6 +7,7 @@ from datetime import date, timedelta
 
 from app.core.errors import AppError
 from app.core.supabase_client import rest_select
+from app.repositories.categories import saring_terlihat as saring_kategori_terlihat
 
 KOLOM_TRANSAKSI = "id,type,amount,txn_date,category_id,member_id,account_id,merchant,notes"
 
@@ -111,36 +112,42 @@ async def arus_kas(token: str, household_id: str, dari: str, sampai: str) -> lis
     baris = await transaksi_rentang(token, household_id, dari, sampai)
     per_bulan: dict[str, dict] = {}
     for b in baris:
-        kunci = str(b.get("txn_date") or "")[:7]
-        sel = per_bulan.setdefault(kunci, {"bulan": kunci, "pemasukan": 0, "pengeluaran": 0})
+        key = str(b.get("txn_date") or "")[:7]
+        sel = per_bulan.setdefault(key, {"bulan": key, "pemasukan": 0, "pengeluaran": 0})
         if b.get("type") == "income":
             sel["pemasukan"] += int(b.get("amount") or 0)
         elif b.get("type") == "expense":
             sel["pengeluaran"] += int(b.get("amount") or 0)
     hasil = []
-    for kunci in sorted(per_bulan):
-        sel = per_bulan[kunci]
+    for key in sorted(per_bulan):
+        sel = per_bulan[key]
         sel["selisih"] = sel["pemasukan"] - sel["pengeluaran"]
         hasil.append(sel)
     return hasil
 
 
 async def rekap_kategori(token: str, household_id: str, dari: str, sampai: str) -> list[dict]:
-    """Rekap pengeluaran per kategori, dari yang terbesar."""
+    """Rekap pengeluaran per kategori, dari yang terbesar.
+
+    Kategori sistem tidak punya household_id, jadi penyaringnya memakai daftar yang
+    sama seperti daftar kategori, yaitu kategori sistem ditambah kategori rumah ini.
+    """
     baris = await transaksi_rentang(token, household_id, dari, sampai)
-    kategori = await rest_select("categories", {"household_id": f"eq.{household_id}", "select": "id,name"}, token)
+    kategori = await rest_select(
+        "categories", {**saring_kategori_terlihat(household_id), "select": "id,name"}, token
+    )
     nama = {k["id"]: k["name"] for k in kategori}
 
     total: dict[str, int] = {}
     for b in baris:
         if b.get("type") != "expense":
             continue
-        kunci = b.get("category_id") or ""
-        total[kunci] = total.get(kunci, 0) + int(b.get("amount") or 0)
+        key = b.get("category_id") or ""
+        total[key] = total.get(key, 0) + int(b.get("amount") or 0)
 
     hasil = [
-        {"category_id": kunci or None, "nama": nama.get(kunci, "Tanpa kategori"), "total": nilai}
-        for kunci, nilai in total.items()
+        {"category_id": key or None, "nama": nama.get(key, "Tanpa kategori"), "total": nilai}
+        for key, nilai in total.items()
     ]
     hasil.sort(key=lambda x: x["total"], reverse=True)
     return hasil
@@ -158,12 +165,12 @@ async def rekap_anggota(token: str, household_id: str, dari: str, sampai: str) -
     for b in baris:
         if b.get("type") != "expense":
             continue
-        kunci = b.get("member_id") or ""
-        total[kunci] = total.get(kunci, 0) + int(b.get("amount") or 0)
+        key = b.get("member_id") or ""
+        total[key] = total.get(key, 0) + int(b.get("amount") or 0)
 
     hasil = [
-        {"member_id": kunci or None, "nama": nama.get(kunci, "Tanpa anggota"), "total": nilai}
-        for kunci, nilai in total.items()
+        {"member_id": key or None, "nama": nama.get(key, "Tanpa anggota"), "total": nilai}
+        for key, nilai in total.items()
     ]
     hasil.sort(key=lambda x: x["total"], reverse=True)
     return hasil

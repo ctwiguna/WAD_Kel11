@@ -127,7 +127,7 @@ def test_tambah_201_beserta_kolom_turunan(db):  # noqa: F811
     _isi(db)
     res = client.post(URL, json={"household_id": RT, "category_id": "k2", "period_month": "2026-10-01", "limit_amount": 400000})
     assert res.status_code == 201
-    assert db.ditulis == [("insert", "budgets", {"household_id": RT, "category_id": "k2", "period_month": "2026-10-01", "limit_amount": 400000})]
+    assert db.ditulis == [("insert", "budgets", {"household_id": RT, "category_id": "k2", "period_month": "2026-10-01", "limit_amount": 400000, "created_by": "u1"})]
     assert res.json()["data"]["spent"] == 0
     assert res.json()["data"]["status"] == "aman"
 
