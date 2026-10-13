@@ -1,8 +1,8 @@
-// adapters.js — jembatan antara bentuk data frontend dan kontrak API backend.
+// adapters.js, jembatan antara bentuk data frontend dan kontrak API backend.
 //
 // Dokumen target: KeluargaFin_Backend_Supabase_v4_Logic_di_Backend.docx
 // Kontrak backend memakai snake_case, id UUID, dan household_id pada setiap baris.
-// Frontend saat ini memakai nama sebagai kunci relasi (category, member, account)
+// Frontend saat ini memakai nama sebagai key relasi (category, member, account)
 // dan nama field pendek (date, limit, target, current, archived, balance).
 //
 // Berkas ini hanya melakukan penerjemahan bentuk data. Tidak ada perhitungan
@@ -183,11 +183,41 @@ export function transactionToApi(form, lookups) {
     payload.category_id = lookups.resolveCategoryId(butuh(form.category, 'kategori wajib dipilih'));
   }
 
-  if (form.status === 'dibatalkan') {
-    payload.deleted_at = new Date().toISOString();
-  }
+  // Status transaksi belum punya kolom di backend. Pembatalan dikirim lewat DELETE,
+  // bukan lewat kolom deleted_at pada body, karena model backend menolak kolom tambahan.
+  // Nilai pending juga belum ada wakilnya di backend dan masih menunggu keputusan tim.
 
   return withHousehold(payload, lookups);
+}
+
+// Formulir frontend menjadi payload PATCH. Hanya kolom yang benar benar dikirim yang
+// ikut, supaya pengubahan sebagian seperti hanya nominal atau hanya merchant tetap jalan.
+export function transactionPatchToApi(form, lookups) {
+  const payload = {};
+
+  if (form.type !== undefined) {
+    payload.type = butuh(form.type, 'jenis transaksi wajib diisi');
+    if (payload.type === 'transfer') {
+      payload.to_account_id = lookups.resolveAccountId(butuh(form.toAccount, 'dompet tujuan wajib dipilih untuk transfer'));
+    } else {
+      payload.category_id = lookups.resolveCategoryId(butuh(form.category, 'kategori wajib dipilih'));
+    }
+  } else if (form.category !== undefined) {
+    payload.category_id = lookups.resolveCategoryId(butuh(form.category, 'kategori wajib dipilih'));
+  }
+
+  if (form.amount !== undefined) {
+    const nominal = Number(String(form.amount).replace(/\D/g, '')) || 0;
+    if (nominal <= 0) throw new Error('adapters: nominal transaksi harus lebih besar dari nol');
+    payload.amount = nominal;
+  }
+  if (form.date !== undefined) payload.txn_date = butuh(form.date, 'tanggal transaksi wajib diisi');
+  if (form.account !== undefined) payload.account_id = lookups.resolveAccountId(butuh(form.account, 'dompet wajib dipilih'));
+  if (form.member !== undefined) payload.member_id = lookups.resolveMemberId(butuh(form.member, 'anggota wajib dipilih'));
+  if (form.merchant !== undefined) payload.merchant = form.merchant ?? '';
+  if (form.notes !== undefined) payload.notes = form.notes ?? '';
+
+  return payload;
 }
 
 // ------------------------------------------------------------ dompet accounts
@@ -205,6 +235,8 @@ export function accountFromApi(row) {
   };
 }
 
+// Formulir frontend menjadi payload POST dompet. is_active tidak ikut karena model
+// DompetBaru menolak kolom tambahan, dan dompet baru selalu aktif.
 export function accountToApi(form) {
   const tipe = butuh(form.type, 'jenis dompet wajib diisi');
   return {
@@ -212,8 +244,21 @@ export function accountToApi(form) {
     type: tipe,
     provider: form.provider ?? '',
     opening_balance: Number(String(form.balance ?? form.opening_balance ?? '').replace(/\D/g, '')) || 0,
-    is_active: form.isActive ?? true,
   };
+}
+
+// Formulir frontend menjadi payload PATCH dompet. Hanya kolom yang dikirim yang ikut,
+// supaya pengubahan sebagian tidak ikut mengirim jenis dompet kosong.
+export function accountPatchToApi(form) {
+  const payload = {};
+  if (form.name !== undefined) payload.name = butuh(form.name, 'nama dompet wajib diisi').trim();
+  if (form.type !== undefined) payload.type = butuh(form.type, 'jenis dompet wajib diisi');
+  if (form.provider !== undefined) payload.provider = form.provider ?? '';
+  if (form.balance !== undefined || form.openingBalance !== undefined) {
+    payload.opening_balance = Number(String(form.balance ?? form.openingBalance ?? '').replace(/\D/g, '')) || 0;
+  }
+  if (form.isActive !== undefined) payload.is_active = form.isActive;
+  return payload;
 }
 
 // -------------------------------------------------------- kategori categories
@@ -230,14 +275,26 @@ export function categoryFromApi(row) {
   };
 }
 
+// Formulir frontend menjadi payload POST kategori. is_archived tidak ikut karena model
+// KategoriBaru menolak kolom tambahan, dan kategori baru selalu belum diarsipkan.
 export function categoryToApi(form) {
   return {
     name: butuh(form.name, 'nama kategori wajib diisi').trim(),
     kind: form.kind ?? 'expense',
     icon: form.icon ?? '',
     color: form.color ?? '#94A3B8',
-    is_archived: form.archived ?? false,
   };
+}
+
+// Formulir frontend menjadi payload PATCH kategori. Hanya kolom yang dikirim yang ikut.
+export function categoryPatchToApi(form) {
+  const payload = {};
+  if (form.name !== undefined) payload.name = butuh(form.name, 'nama kategori wajib diisi').trim();
+  if (form.kind !== undefined) payload.kind = form.kind;
+  if (form.icon !== undefined) payload.icon = form.icon ?? '';
+  if (form.color !== undefined) payload.color = form.color ?? '#94A3B8';
+  if (form.archived !== undefined) payload.is_archived = form.archived;
+  return payload;
 }
 
 // ---------------------------------------------------------- anggaran budgets
@@ -298,6 +355,23 @@ export function goalToApi(form) {
   };
 }
 
+// Formulir frontend menjadi payload PATCH tujuan. Hanya kolom yang dikirim yang ikut,
+// supaya pengubahan sebagian tidak ikut mengirim target bernilai nol.
+export function goalPatchToApi(form) {
+  const payload = {};
+  if (form.name !== undefined) payload.name = butuh(form.name, 'nama tujuan wajib diisi').trim();
+  if (form.target !== undefined) {
+    const target = Number(String(form.target).replace(/\D/g, '')) || 0;
+    if (target <= 0) throw new Error('adapters: target tujuan harus lebih besar dari nol');
+    payload.target_amount = target;
+  }
+  if (form.deadline !== undefined) payload.deadline = form.deadline || null;
+  if (form.icon !== undefined) payload.icon = form.icon ?? '';
+  if (form.color !== undefined) payload.color = form.color ?? '';
+  if (form.status !== undefined) payload.status = form.status;
+  return payload;
+}
+
 export function contributionToApi({ goalId, amount, memberName, accountName }, lookups) {
   const payload = {
     goal_id: butuh(goalId, 'id tujuan wajib diisi'),
@@ -354,72 +428,60 @@ export function profileFromApi(row) {
 // --------------------------------------------------------------- laporan
 
 // GET /reports/cashflow menjadi deret bulan yang dipakai grafik halaman Laporan.
+// Backend memakai nama kolom bahasa Indonesia, yaitu bulan, pemasukan, pengeluaran, selisih.
 export function cashflowFromApi(response) {
   const rows = Array.isArray(response) ? response : response?.data ?? [];
   return rows.map((r) => ({
-    month: r.month ?? r.periode ?? '',
-    label: r.label ?? r.month ?? r.periode ?? '',
-    income: r.total_pemasukan ?? r.income ?? 0,
-    expense: r.total_pengeluaran ?? r.expense ?? 0,
+    month: r.bulan ?? r.month ?? '',
+    label: r.bulan ?? r.month ?? '',
+    income: r.pemasukan ?? 0,
+    expense: r.pengeluaran ?? 0,
+    net: r.selisih ?? 0,
   }));
 }
 
+// GET /reports/categories. Backend mengirim category_id, nama, dan total pengeluaran.
 export function categoryReportFromApi(response) {
   const rows = Array.isArray(response) ? response : response?.data ?? [];
-  const total = rows.reduce((s, r) => s + (r.total ?? r.total_pengeluaran ?? 0), 0);
+  const total = rows.reduce((s, r) => s + (Number(r.total) || 0), 0);
   return rows.map((r) => {
-    const nilai = r.total ?? r.total_pengeluaran ?? 0;
+    const nilai = Number(r.total) || 0;
     return {
-      category: r.name ?? r.category ?? '',
+      category: r.nama ?? r.name ?? '',
       categoryId: r.category_id ?? null,
       spent: nilai,
+      total: nilai,
       pct: total > 0 ? Math.round((nilai / total) * 100) : 0,
     };
   });
 }
 
+// GET /reports/members. Backend menjumlahkan pengeluaran saja, jadi masukannya nol.
 export function memberReportFromApi(response) {
   const rows = Array.isArray(response) ? response : response?.data ?? [];
   return rows.map((r) => ({
-    name: r.display_name ?? r.name ?? '',
+    name: r.nama ?? r.display_name ?? '',
     memberId: r.member_id ?? null,
-    inc: r.total_pemasukan ?? r.income ?? 0,
-    exp: r.total_pengeluaran ?? r.expense ?? 0,
-    count: r.jumlah_transaksi ?? r.count ?? 0,
+    inc: 0,
+    exp: Number(r.total) || 0,
+    total: Number(r.total) || 0,
+    count: r.jumlah_transaksi ?? 0,
   }));
 }
 
+// GET /dashboard/summary. Backend mengirim delapan kolom jadi, tidak ada daftar di dalamnya.
+// Daftar seperti kategori teratas, peringatan anggaran, dan transaksi terbaru dibangun
+// halaman dari getReportsCategories, getBudgets, dan getTransactions.
 export function summaryFromApi(response) {
   const d = response?.data ?? response ?? {};
   return {
-    period: d.periode ?? '',
-    totalIncome: d.total_pemasukan ?? 0,
-    totalExpense: d.total_pengeluaran ?? 0,
-    netFlow: d.arus_kas_bersih ?? 0,
-    topCategories: (d.kategori_teratas ?? []).map((c) => ({
-      category: c.name ?? '',
-      categoryId: c.category_id ?? null,
-      total: c.total ?? 0,
-    })),
-    budgetAlerts: (d.status_anggaran ?? [])
-      .filter((b) => (b.status ?? 'aman') !== 'aman')
-      .map((b) => ({
-        budgetId: b.budget_id,
-        limit: b.limit_amount,
-        spent: b.spent,
-        pct: b.usage_percent,
-        status: b.status,
-      })),
-    goalProgress: (d.progres_tujuan ?? []).map((g) => ({
-      goalId: g.goal_id,
-      target: g.target_amount,
-      saved: g.saved_amount,
-      pct: g.progress_percent,
-    })),
-    latestTransactions: (d.transaksi_terbaru ?? []).map((t) => ({
-      id: t.id,
-      merchant: t.merchant,
-      amount: t.amount,
-    })),
+    period: d.bulan ?? '',
+    totalIncome: d.pemasukan ?? 0,
+    totalExpense: d.pengeluaran ?? 0,
+    netFlow: d.selisih ?? 0,
+    budgetLimit: d.batas_anggaran ?? 0,
+    budgetSpent: d.anggaran_terpakai ?? 0,
+    budgetRemaining: d.anggaran_tersisa ?? 0,
+    savingsCollected: d.tabungan_terkumpul ?? 0,
   };
 }
