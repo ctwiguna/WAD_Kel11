@@ -1,4 +1,4 @@
-// QaPanel.jsx — komponen React, masuk components/ bukan utils/
+// QaPanel.jsx, komponen React, masuk components/ bukan utils/
 
 import { useState } from 'react';
 import { getLogs } from '../utils/analytics';
@@ -27,7 +27,7 @@ export default function QAPanel() {
       style={{ boxShadow: 'rgba(0,0,0,0.3) 0px 16px 40px -8px' }}
     >
       <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: '#7C3AED' }}>
-        <span className="text-white text-xs font-mono font-bold">QA Panel — Analytics Log</span>
+        <span className="text-white text-xs font-mono font-bold">QA Panel: Analytics Log</span>
         <div className="flex gap-2">
           <button onClick={refresh} className="text-white/70 hover:text-white text-xs font-mono">↻</button>
           <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white text-xs font-mono">×</button>

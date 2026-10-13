@@ -72,7 +72,7 @@ export default function Reports() {
     .map(([category, spent]) => ({ category, spent, pct: totalExpense > 0 ? Math.round((spent / totalExpense) * 100) : 0 }))
     .sort((a, b) => b.spent - a.spent);
 
-  // ── Grafik tren — build dari data transaksi nyata per bulan ─
+  // Grafik tren, dibangun dari data transaksi nyata per bulan
   const monthlyMap = {};
   allTxns.forEach(t => {
     const m = t.date.slice(0, 7);
@@ -122,7 +122,7 @@ export default function Reports() {
         </button>
       </div>
 
-      {/* Period selector — generate dari transaksi yang ada */}
+      {/* Period selector, dibuat dari transaksi yang ada */}
       {(() => {
         const uniqueMonths = [...new Set(allTxns.map(t => t.date.slice(0, 7)))].sort().reverse();
         return (
@@ -173,7 +173,7 @@ export default function Reports() {
           </div>
         </Card>
 
-        {/* Komposisi kategori — dari transaksi nyata */}
+        {/* Komposisi kategori, dari transaksi nyata */}
         <Card padding="p-6">
           <h2 className="font-bold text-slate-900 mb-5">Komposisi Pengeluaran</h2>
           {byCategory.length === 0 ? (
@@ -206,7 +206,7 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* Tabel per anggota — dari transaksi nyata */}
+      {/* Tabel per anggota, dari transaksi nyata */}
       <Card padding="p-6">
         <h2 className="font-bold text-slate-900 mb-5">Ringkasan per Anggota</h2>
         <div className="overflow-x-auto">
@@ -237,8 +237,8 @@ export default function Reports() {
                         <span className="font-medium text-slate-900">{name}</span>
                       </div>
                     </td>
-                    <td className="py-3 text-right font-semibold text-emerald-600">{inc > 0 ? formatRupiah(inc) : '—'}</td>
-                    <td className="py-3 text-right font-semibold text-red-500">{exp > 0 ? formatRupiah(exp) : '—'}</td>
+                    <td className="py-3 text-right font-semibold text-emerald-600">{inc > 0 ? formatRupiah(inc) : '-'}</td>
+                    <td className="py-3 text-right font-semibold text-red-500">{exp > 0 ? formatRupiah(exp) : '-'}</td>
                     <td className="py-3 text-right text-slate-500">{count}</td>
                   </tr>
                 );

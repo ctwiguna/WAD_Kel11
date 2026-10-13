@@ -1,4 +1,4 @@
-// Card — komponen reusable dengan props + default value
+// Card, komponen reusable dengan props + default value
 
 export default function Card({
   children,

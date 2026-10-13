@@ -17,22 +17,22 @@ const memberTemplates = [
 export default function Onboarding({ onDone }) {
   const [step, setStep] = useState(0);
 
-  // Step 0 — household
+  // Step 0, household
   const [household, setHousehold] = useState('');
 
-  // Step 1 — anggota
+  // Step 1, anggota
   const [members, setMembers] = useState([
     { role: 'Ayah', avatar: '👨', name: '' },
     { role: 'Ibu',  avatar: '👩', name: '' },
     { role: 'Anak', avatar: '🧒', name: '' },
   ]);
 
-  // Step 2 — budget awal
+  // Step 2, budget awal
   const [budgets, setBudgets] = useState(
     defaultBudgets.map(b => ({ ...b, limit: b.limit, active: true }))
   );
 
-  // Step 3 — goal pertama (opsional)
+  // Step 3, goal pertama (opsional)
   const [goal, setGoal] = useState({ name: '', target: '', deadline: '', icon: '🎯' });
   const [skipGoal, setSkipGoal] = useState(false);
 

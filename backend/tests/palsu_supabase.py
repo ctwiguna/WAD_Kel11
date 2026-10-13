@@ -14,13 +14,13 @@ from app.repositories import transactions as repo_transaksi
 RT, RT_LAIN = "rt-1", "rt-2"
 
 
-def _cocok(baris: dict, kunci: str, nilai) -> bool:
-    if kunci in ("select", "order", "limit", "offset"):
+def _cocok(baris: dict, key: str, nilai) -> bool:
+    if key in ("select", "order", "limit", "offset"):
         return True
     if isinstance(nilai, list):
         # dua penyaring pada satu kolom, misal txn_date gte dan lte
-        return all(_cocok(baris, kunci, v) for v in nilai)
-    if kunci == "or":
+        return all(_cocok(baris, key, v) for v in nilai)
+    if key == "or":
         isi = nilai.strip("()")
         if "household_id.is.null" in isi:
             rt = isi.split("household_id.eq.")[1]
@@ -32,7 +32,7 @@ def _cocok(baris: dict, kunci: str, nilai) -> bool:
         x = isi.split("account_id.eq.")[1].split(",")[0]
         return x in (baris.get("account_id"), baris.get("to_account_id"))
     op, _, v = nilai.partition(".")
-    nyata = baris.get(kunci)
+    nyata = baris.get(key)
     if op == "eq":
         return str(nyata).lower() == v.lower() if isinstance(nyata, bool) else str(nyata) == v
     if op == "neq":

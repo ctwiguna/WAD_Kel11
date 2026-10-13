@@ -7,19 +7,19 @@ from app.core.errors import AppError
 TIMEOUT = 10.0
 
 
-def _kunci() -> str:
+def _api_key() -> str:
     settings = get_settings()
     return settings.supabase_service_role_key or settings.supabase_anon_key
 
 
 def _headers(token: str | None = None, prefer: str | None = None) -> dict:
     settings = get_settings()
-    kunci = _kunci()
-    if not settings.supabase_url or not kunci:
+    api_key = _api_key()
+    if not settings.supabase_url or not api_key:
         raise AppError(503, "SUPABASE_UNAVAILABLE", "Data sedang tidak dapat diakses, coba lagi sebentar lagi.")
     headers = {
-        "apikey": kunci,
-        "Authorization": f"Bearer {token or kunci}",
+        "apikey": api_key,
+        "Authorization": f"Bearer {token or api_key}",
         "Content-Type": "application/json",
     }
     if prefer:

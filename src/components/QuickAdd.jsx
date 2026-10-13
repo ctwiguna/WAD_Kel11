@@ -1,4 +1,4 @@
-// QuickAdd — modal catat transaksi cepat
+// QuickAdd, modal catat transaksi cepat
 // Pencatatan manual saja, karena kontrak backend tidak menyediakan pindai struk
 
 import { track } from '../utils/analytics';

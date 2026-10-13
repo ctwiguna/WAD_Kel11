@@ -49,7 +49,7 @@ async def hapus(token: str, category_id: str) -> None:
 async def jumlah_transaksi(token: str, category_id: str) -> int:
     try:
         return await rest_hitung("transactions", {"category_id": f"eq.{category_id}"}, token)
-    except AppError as galat:
-        if tabel_belum_ada(galat):
+    except AppError as error:
+        if tabel_belum_ada(error):
             return 0
         raise

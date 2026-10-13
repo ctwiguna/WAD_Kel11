@@ -8,7 +8,7 @@ from jwt import PyJWKClient
 from app.core.config import get_settings
 from app.core.errors import unauthenticated
 
-_pemegang_kunci: PyJWKClient | None = None
+_jwks_klien: PyJWKClient | None = None
 
 
 def _buka_token(token: str) -> dict[str, Any]:
@@ -17,11 +17,11 @@ def _buka_token(token: str) -> dict[str, Any]:
         return jwt.decode(token, settings.supabase_jwt_secret, algorithms=["HS256"], audience="authenticated")
     if not settings.supabase_jwks_url:
         raise unauthenticated()
-    global _pemegang_kunci
-    if _pemegang_kunci is None:
-        _pemegang_kunci = PyJWKClient(settings.supabase_jwks_url)
-    kunci = _pemegang_kunci.get_signing_key_from_jwt(token).key
-    return jwt.decode(token, kunci, algorithms=["ES256", "RS256"], audience="authenticated")
+    global _jwks_klien
+    if _jwks_klien is None:
+        _jwks_klien = PyJWKClient(settings.supabase_jwks_url)
+    public_key = _jwks_klien.get_signing_key_from_jwt(token).key
+    return jwt.decode(token, public_key, algorithms=["ES256", "RS256"], audience="authenticated")
 
 
 def _ambil_token(authorization: str | None) -> str:

@@ -1,4 +1,4 @@
-// ToastContext — global feedback system
+// ToastContext, global feedback system
 // Pakai: const { showToast } = useToast(); showToast('Berhasil!', 'success');
 
 import { createContext, useContext, useState, useCallback } from 'react';
@@ -30,7 +30,7 @@ export function ToastProvider({ children }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
 
-      {/* Toast stack — pojok kanan bawah */}
+      {/* Toast stack, pojok kanan bawah */}
       <div className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-[100] flex flex-col gap-2 items-end">
         {toasts.map(t => {
           const s = styles[t.type] ?? styles.success;
