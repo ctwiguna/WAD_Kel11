@@ -1,4 +1,4 @@
-// Button — props + default value
+// Button, props + default value
 
 const variantStyles = {
   primary: { backgroundColor: '#0F172A', color: '#fff', border: 'none' },

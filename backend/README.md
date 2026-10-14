@@ -19,16 +19,16 @@ docker compose up
 
 Dokumentasi otomatis tersedia di `/docs`, pemeriksaan kesehatan di `/health`.
 
-## Variabel lingkungan
+## Variabel environment
 
 Salin `.env.example` menjadi `.env` lalu isi nilainya.
 
 | Nama | Isi |
 | --- | --- |
 | SUPABASE_URL | alamat proyek Supabase |
-| SUPABASE_ANON_KEY | kunci anon untuk pemakaian di klien |
-| SUPABASE_SERVICE_ROLE_KEY | kunci server, hanya untuk layanan ini |
-| SUPABASE_JWKS_URL | alamat kunci publik untuk memeriksa token |
+| SUPABASE_ANON_KEY | anon key untuk pemakaian di klien |
+| SUPABASE_SERVICE_ROLE_KEY | service role key, hanya untuk layanan ini |
+| SUPABASE_JWKS_URL | alamat public key untuk memeriksa token |
 | SUPABASE_JWT_SECRET | hanya untuk pengembangan lokal, tanda tangan HS256 |
 | CORS_ORIGINS | daftar asal yang diizinkan, dipisah koma |
 
@@ -36,7 +36,7 @@ Salin `.env.example` menjadi `.env` lalu isi nilainya.
 
 ```
 app/main.py             titik masuk layanan
-app/core/config.py      pembacaan variabel lingkungan
+app/core/config.py      pembacaan variabel environment
 app/core/errors.py      bentuk error standar
 app/core/pagination.py  fungsi bantu paginasi, dipakai semua router
 app/core/supabase_client.py  akses PostgREST

@@ -18,17 +18,17 @@ class JawabanPalsu:
 
 
 def test_jawaban_penolakan_izin_menjadi_403():
-    with pytest.raises(AppError) as galat:
+    with pytest.raises(AppError) as error:
         _cek(JawabanPalsu(status_code=403, isi=b'{"message":"new row violates row-level security policy"}'))
-    assert galat.value.status_code == 403
-    assert galat.value.code == "FORBIDDEN"
+    assert error.value.status_code == 403
+    assert error.value.code == "FORBIDDEN"
 
 
-def test_jawaban_galat_lain_menjadi_502():
-    with pytest.raises(AppError) as galat:
+def test_jawaban_error_lain_menjadi_502():
+    with pytest.raises(AppError) as error:
         _cek(JawabanPalsu(status_code=500, isi=b"{}"))
-    assert galat.value.status_code == 502
-    assert galat.value.code == "SUPABASE_ERROR"
+    assert error.value.status_code == 502
+    assert error.value.code == "SUPABASE_ERROR"
 
 
 def test_isi_kosong_dibaca_sebagai_daftar_kosong():

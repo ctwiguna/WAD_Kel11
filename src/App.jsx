@@ -112,7 +112,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Nav — map navItems */}
+        {/* Nav, map navItems */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
             <button
@@ -131,7 +131,7 @@ export default function App() {
           ))}
         </nav>
 
-        {/* User info — props user */}
+        {/* User info, props user */}
         <div className="px-4 py-4 border-t border-white/10">
           <div className="flex items-center gap-3 px-2">
             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-sm">
@@ -165,7 +165,7 @@ export default function App() {
           <div className="w-9 h-9" />
         </header>
 
-        {/* Halaman — props user dikirim ke PageComponent */}
+        {/* Halaman, props user dikirim ke PageComponent */}
         <main className="flex-1 p-6 lg:p-8 overflow-auto">
           <PageComponent user={user} />
         </main>
@@ -202,7 +202,7 @@ export default function App() {
       {/* Quick Add Modal */}
       {quickAddOpen && <QuickAdd onClose={() => setQuickAddOpen(false)} onNavigate={handleNavigate} />}
 
-      {/* QA Panel — muncul di pojok bawah (development only) */}
+      {/* QA Panel, muncul di pojok bawah (development only) */}
       <QAPanel />
     </div>
     </ToastProvider>

@@ -1,4 +1,4 @@
-// analytics.js — fungsi helper murni, tidak ada JSX
+// analytics.js, fungsi helper murni, tidak ada JSX
 
 const logs = [];
 

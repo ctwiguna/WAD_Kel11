@@ -56,12 +56,12 @@ async def _lengkapi(token: str, household_id: str, baris: list[dict]) -> list[di
         pengeluaran = []
     jumlah: dict = {}
     for t in pengeluaran:
-        kunci = (t.get("category_id"), _hari_bulan(t.get("txn_date")))
-        jumlah[kunci] = jumlah.get(kunci, 0) + int(t.get("amount") or 0)
+        key = (t.get("category_id"), _hari_bulan(t.get("txn_date")))
+        jumlah[key] = jumlah.get(key, 0) + int(t.get("amount") or 0)
     hasil = []
     for b in baris:
-        kunci = (b.get("category_id"), _hari_bulan(b.get("period_month")))
-        hasil.append({**b, **kolom_turunan(jumlah.get(kunci, 0), int(b.get("limit_amount") or 0))})
+        key = (b.get("category_id"), _hari_bulan(b.get("period_month")))
+        hasil.append({**b, **kolom_turunan(jumlah.get(key, 0), int(b.get("limit_amount") or 0))})
     return hasil
 
 
@@ -95,7 +95,8 @@ async def tambah(token, user, data: dict) -> dict:
     await akses.wajib_penulis(token, data["household_id"], user)
     if await repo.sudah_ada(token, data["household_id"], data["category_id"], data["period_month"]):
         raise conflict("Anggaran untuk kategori itu pada bulan itu sudah ada.")
-    baris = await repo.tambah(token, data)
+    # created_by wajib diisi dan tidak boleh datang dari body, jadi diambil dari token.
+    baris = await repo.tambah(token, {**data, "created_by": user["sub"]})
     hasil = await _lengkapi(token, data["household_id"], [baris])
     return hasil[0]
 

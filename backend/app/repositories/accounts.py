@@ -53,8 +53,8 @@ async def transaksi_dompet(token: str, household_id: str, account_ids: list[str]
     }
     try:
         return await rest_select("transactions", params, token)
-    except AppError as galat:
-        if tabel_belum_ada(galat):
+    except AppError as error:
+        if tabel_belum_ada(error):
             return []
         raise
 
@@ -68,7 +68,7 @@ async def jumlah_rujukan(token: str, account_id: str) -> int:
     ):
         try:
             total += await rest_hitung(tabel, saring, token)
-        except AppError as galat:
-            if not tabel_belum_ada(galat):
+        except AppError as error:
+            if not tabel_belum_ada(error):
                 raise
     return total

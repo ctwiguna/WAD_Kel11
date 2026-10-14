@@ -32,7 +32,7 @@ export default function Dashboard({ user }) {
 
   track('Dashboard:render');
 
-  // Loading state — ternary
+  // Loading state, ternary
   if (loadTxn || loadBudget) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -44,7 +44,7 @@ export default function Dashboard({ user }) {
     );
   }
 
-  // Error state — ternary
+  // Error state, ternary
   if (errTxn) {
     return (
       <Card>
@@ -102,7 +102,7 @@ export default function Dashboard({ user }) {
         </p>
       </div>
 
-      {/* Notifikasi anggaran — ternary + map */}
+      {/* Notifikasi anggaran, ternary + map */}
       {budgetAlerts.length > 0 && (
         <div className="space-y-2">
           {budgetAlerts.map(b => {
@@ -117,7 +117,7 @@ export default function Dashboard({ user }) {
                 <span className="text-lg shrink-0">{isOver ? '🚨' : '⚠️'}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold" style={{ color: isOver ? '#991B1B' : '#92400E' }}>
-                    {isOver ? 'Anggaran terlampaui' : 'Anggaran hampir habis'} — {b.category}
+                    {isOver ? 'Anggaran terlampaui' : 'Anggaran hampir habis'}: {b.category}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: isOver ? '#B91C1C' : '#B45309' }}>
                     {formatRupiah(b.spent)} dari {formatRupiah(b.limit)} ({b.pct}%)
@@ -136,7 +136,7 @@ export default function Dashboard({ user }) {
         </div>
       )}
 
-      {/* StatCards — props */}
+      {/* StatCards, props */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Total Pemasukan" amount={totalIncome}  sub="Bulan Januari" color="#10B981" />
         <StatCard label="Total Pengeluaran" amount={totalExpense} sub="Bulan Januari" color="#EF4444" />
@@ -149,7 +149,7 @@ export default function Dashboard({ user }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Kategori teratas — map */}
+        {/* Kategori teratas, map */}
         <Card className="lg:col-span-2">
           <h2 className="font-bold text-slate-900 mb-5">Kategori Teratas</h2>
           {categoryTotals.length === 0 ? (
@@ -183,7 +183,7 @@ export default function Dashboard({ user }) {
           )}
         </Card>
 
-        {/* Transaksi terbaru — map */}
+        {/* Transaksi terbaru, map */}
         <Card className="lg:col-span-3">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-bold text-slate-900">Transaksi Terbaru</h2>
@@ -215,7 +215,7 @@ export default function Dashboard({ user }) {
         </Card>
       </div>
 
-      {/* Pengeluaran per anggota — map */}
+      {/* Pengeluaran per anggota, map */}
       <Card>
         <h2 className="font-bold text-slate-900 mb-5">Pengeluaran per Anggota</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">

@@ -5,7 +5,7 @@ export const kf = {
 
 export function save(key, data) {
   if (kf.failMode) {
-    console.warn('[localStorage] failMode aktif — save diabaikan:', key);
+    console.warn('[localStorage] failMode aktif, save diabaikan:', key);
     return;
   }
   try {
@@ -18,7 +18,7 @@ export function save(key, data) {
 
 export function load(key, fallback = null) {
   if (kf.failMode) {
-    console.warn('[localStorage] failMode aktif — load diabaikan:', key);
+    console.warn('[localStorage] failMode aktif, load diabaikan:', key);
     return fallback;
   }
   try {
