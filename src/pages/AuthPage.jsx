@@ -1,19 +1,94 @@
-import { useState } from 'react';
+// AuthPage, halaman masuk dan daftar lewat Supabase Auth.
+// Setelah masuk berhasil, onLogin dari App.jsx dipanggil untuk menyiapkan sesi lapisan data.
 
-export default function AuthPage({ onLogin }) {
+import { useState } from 'react';
+import { supabase, supabaseSiap } from '../lib/supabase';
+
+export default function AuthPage({ onLogin, initialError = '' }) {
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [householdName, setHouseholdName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(initialError);
+  const [info, setInfo] = useState('');
 
-  const handleSubmit = (e) => {
+  // Masuk. Pesan error dari Supabase ditampilkan apa adanya, kalau berhasil lanjut ke onLogin.
+  const handleLogin = async () => {
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (authError) throw authError;
+    await onLogin();
+  };
+
+  // Daftar. Nama keluarga ikut disimpan sebagai metadata akun supaya tidak hilang
+  // selama menunggu verifikasi email.
+  const handleRegister = async () => {
+    const { data, error: authError } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { household_name: householdName.trim() },
+        emailRedirectTo: window.location.origin,
+      },
+    });
+    if (authError) throw authError;
+
+    // Saat verifikasi email aktif, Supabase tidak mengirim error untuk email yang sudah
+    // terdaftar. Tandanya daftar identities pada user kosong.
+    if (data.user?.identities?.length === 0) {
+      throw new Error('Email ini sudah terdaftar. Silakan masuk dengan email tersebut.');
+    }
+
+    // Tanpa sesi berarti akun perlu diverifikasi lewat email lebih dulu.
+    if (!data.session) {
+      setMode('login');
+      setPassword('');
+      setInfo(
+        `Pendaftaran berhasil. Tautan verifikasi sudah dikirim ke ${email.trim()}. ` +
+          'Buka tautan itu, lalu masuk dengan email dan kata sandi yang sama.'
+      );
+      return;
+    }
+
+    // Verifikasi email dimatikan di proyek Supabase, jadi sesi langsung aktif.
+    await onLogin();
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+    setError('');
+    setInfo('');
     setLoading(true);
-    setTimeout(() => {
+    try {
+      if (mode === 'login') await handleLogin();
+      else await handleRegister();
+    } catch (err) {
+      // Tanpa respons sama sekali dari Supabase, misalnya internet putus atau URL salah
+      const noResponse = err?.name === 'AuthRetryableFetchError' && !err?.status;
+      setError(
+        noResponse
+          ? 'Tidak bisa menghubungi server autentikasi. Periksa koneksi internet, lalu coba lagi.'
+          : err?.message || 'Terjadi kesalahan, silakan coba lagi.'
+      );
+    } finally {
       setLoading(false);
-      onLogin();
-    }, 1000);
+    }
+  };
+
+  // Masuk dengan Google belum disambungkan ke Supabase, jadi tombolnya hanya memberi tahu.
+  const handleGoogle = () => {
+    setError('');
+    setInfo('Masuk dengan Google belum tersedia. Silakan masuk dengan email dan kata sandi.');
+  };
+
+  const toggleMode = () => {
+    setMode(mode === 'login' ? 'register' : 'login');
+    setError('');
+    setInfo('');
   };
 
   return (
@@ -65,7 +140,27 @@ export default function AuthPage({ onLogin }) {
             {mode === 'login' ? 'Masukkan email dan kata sandi Anda' : 'Mulai kelola keuangan keluarga Anda'}
           </p>
 
+          {/* Pengingat untuk pengembang bila berkas .env.local belum diisi */}
+          {!supabaseSiap && (
+            <div className="mb-4 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-800">
+              Supabase belum diatur. Salin .env.example menjadi .env.local, isi VITE_SUPABASE_URL dan
+              VITE_SUPABASE_ANON_KEY, lalu jalankan ulang npm run dev.
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div role="alert" className="px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            {info && (
+              <div role="status" className="px-4 py-3 rounded-xl border border-blue-100 bg-blue-50 text-sm text-blue-700">
+                {info}
+              </div>
+            )}
+
             {mode === 'register' && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">Nama Keluarga</label>
@@ -87,6 +182,7 @@ export default function AuthPage({ onLogin }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="nama@email.com"
+                autoComplete="email"
                 required
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-slate-400 transition-colors"
               />
@@ -99,6 +195,7 @@ export default function AuthPage({ onLogin }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 required
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-slate-400 transition-colors"
               />
@@ -132,7 +229,7 @@ export default function AuthPage({ onLogin }) {
 
             <button
               type="button"
-              onClick={onLogin}
+              onClick={handleGoogle}
               className="w-full py-3 rounded-xl border border-slate-200 font-medium text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -149,7 +246,7 @@ export default function AuthPage({ onLogin }) {
             {mode === 'login' ? 'Belum punya akun?' : 'Sudah punya akun?'}{' '}
             <button
               type="button"
-              onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+              onClick={toggleMode}
               className="font-semibold text-slate-900 hover:underline"
             >
               {mode === 'login' ? 'Daftar gratis' : 'Masuk'}

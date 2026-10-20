@@ -1,10 +1,21 @@
 // App.jsx → shell utama, kirim props ke semua halaman
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ToastProvider } from './context/ToastContext';
 import QuickAdd from './components/QuickAdd';
 import { track } from './utils/analytics';
-import { load } from './utils/localStorage';
+import { supabase } from './lib/supabase';
+import {
+  setSession,
+  clearSession,
+  infoSesi,
+  getProfile,
+  getHouseholds,
+  postHousehold,
+  getMembers,
+  getCategories,
+  getAccounts,
+} from './API/getData';
 import QAPanel from './components/QAPanel';
 import AuthPage from './pages/AuthPage';
 import Onboarding from './pages/Onboarding';
@@ -37,6 +48,12 @@ const defaultUser = {
   avatar: '👨',
 };
 
+// Ikon cadangan bila profil belum punya avatar, mengikuti peran di rumah tangga
+const roleAvatar = { ayah: '👨', ibu: '👩', anak: '🧒' };
+
+// Salinan data sesi milik App. Dipakai lagi saat token Supabase diperbarui.
+const emptySession = { token: null, profile: null, household: null, members: [], categories: [], accounts: [] };
+
 const pages = {
   dashboard:    Dashboard,
   transactions: Transactions,
@@ -46,23 +63,185 @@ const pages = {
   settings:     Settings,
 };
 
+// Layar tunggu, dipakai saat memeriksa sesi tersimpan dan saat menyimpan rumah tangga
+function LoadingScreen({ message, overlay = false }) {
+  return (
+    <div
+      className={`${overlay ? 'fixed inset-0 z-50' : 'min-h-screen'} flex items-center justify-center`}
+      style={{ backgroundColor: overlay ? 'rgba(248,250,252,0.85)' : '#F8FAFC' }}
+    >
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-sm text-slate-400">{message}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [authed, setAuthed]             = useState(false);
-  const [onboarded, setOnboarded]       = useState(() => !!load('kf_onboarded', false));
+  const [checking, setChecking]         = useState(true);  // memeriksa sesi tersimpan saat aplikasi dibuka
+  const [authNotice, setAuthNotice]     = useState('');    // pesan untuk AuthPage, misalnya sesi berakhir
+  const [onboarded, setOnboarded]       = useState(false); // diisi setelah masuk: sudah punya rumah tangga atau belum
+  const [savingHousehold, setSavingHousehold] = useState(false);
+  const [onboardingError, setOnboardingError] = useState('');
   const [page, setPage]                 = useState('dashboard');
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [user, setUser]                 = useState(defaultUser); // props → dikirim ke halaman
+  const sessionRef = useRef({ ...emptySession });
+  const savingRef  = useRef(false);
 
-  const handleLogin = () => {
-    track('App:login');
-    setAuthed(true);
+  // Nama, email, rumah tangga, dan avatar untuk sidebar dan halaman, semuanya dari backend
+  const buildUser = () => {
+    const { profile, household } = sessionRef.current;
+    const info = infoSesi();
+    return {
+      name: info.displayName || profile?.fullName || profile?.email || '',
+      email: profile?.email ?? '',
+      household: household?.name ?? '',
+      avatar: profile?.avatar || roleAvatar[info.role] || '👤',
+    };
   };
 
-  const handleLogout = () => {
+  // Anggota, kategori, dan dompet rumah tangga aktif. getData ikut menyimpannya ke sesi.
+  const loadLists = async () => {
+    const [members, categories, accounts] = await Promise.all([getMembers(), getCategories(), getAccounts()]);
+    Object.assign(sessionRef.current, { members, categories, accounts });
+  };
+
+  // Rumah tangga aktif dipilih oleh getHouseholds. Tanpa rumah tangga, daftar lain belum bisa dimuat.
+  const loadHousehold = async () => {
+    const households = await getHouseholds();
+    const household = households.find((h) => h.id === infoSesi().householdId) ?? null;
+    sessionRef.current.household = household;
+    if (household) await loadLists();
+    return household;
+  };
+
+  // Mengisi sesi getData dari sesi Supabase, lalu memuat data dasar supaya sesi lengkap.
+  const startSession = async (session) => {
+    const token = session.access_token;
+    sessionRef.current = { ...emptySession, token };
+    setSession({ token, userId: session.user?.id });
+    try {
+      sessionRef.current.profile = await getProfile();
+      const household = await loadHousehold();
+      setUser(buildUser());
+      setOnboarded(Boolean(household));
+      setAuthNotice('');
+      setAuthed(true);
+    } catch (err) {
+      // Kembali ke keadaan belum masuk supaya halaman tidak jalan dengan sesi setengah jadi
+      clearSession();
+      sessionRef.current = { ...emptySession };
+      throw new Error(`Data akun gagal dimuat. ${err.message}`);
+    }
+  };
+
+  // Supabase memperbarui token sendiri sebelum kedaluwarsa. Token baru diteruskan ke getData
+  // tanpa mengganti rumah tangga aktif, lalu daftar dimuat ulang di belakang layar.
+  const refreshToken = (token) => {
+    const current = sessionRef.current;
+    const { userId, householdId } = infoSesi();
+    current.token = token;
+    setSession({
+      token,
+      userId,
+      householdId,
+      members: current.members,
+      categories: current.categories,
+      accounts: current.accounts,
+    });
+    if (householdId) {
+      loadLists().catch((err) => console.warn('[auth] Gagal memuat ulang data sesi:', err.message));
+    }
+  };
+
+  const endSession = (message) => {
+    clearSession();
+    sessionRef.current = { ...emptySession };
+    setAuthed(false);
+    setAuthNotice(message);
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    // Sesi Supabase tersimpan di localStorage, jadi muat ulang halaman tidak perlu masuk lagi
+    const restoreSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw new Error('Sesi sebelumnya tidak bisa dipulihkan, silakan masuk kembali.');
+        if (active && data?.session && !sessionRef.current.token) await startSession(data.session);
+      } catch (err) {
+        if (active) setAuthNotice(err.message);
+      } finally {
+        if (active) setChecking(false);
+      }
+    };
+    restoreSession();
+
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      const current = sessionRef.current;
+      if (!current.token) return; // belum masuk, alur masuk diurus handleLogin
+      if (event === 'SIGNED_OUT') {
+        endSession('Sesi berakhir, silakan masuk kembali.');
+        return;
+      }
+      if (!session) return;
+      if (session.user?.id !== infoSesi().userId) {
+        window.location.reload(); // akun lain masuk dari tab lain
+        return;
+      }
+      if (session.access_token !== current.token) refreshToken(session.access_token);
+    });
+
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Dipanggil AuthPage setelah signInWithPassword berhasil
+  const handleLogin = async () => {
+    track('App:login');
+    const { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    if (!data?.session) throw new Error('Sesi tidak ditemukan, silakan masuk kembali.');
+    await startSession(data.session);
+  };
+
+  const handleLogout = async () => {
     track('App:logout');
+    clearSession();
+    sessionRef.current = { ...emptySession };
+    const { error } = await supabase.auth.signOut();
+    if (error) console.warn('[auth] Gagal keluar dari Supabase:', error.message);
     // window.location.assign → redirect ke halaman awal
     window.location.assign('/');
+  };
+
+  // Onboarding masih menyimpan isiannya ke localStorage. Rumah tangga di backend dibuat
+  // di sini bila belum ada, lalu datanya dimuat supaya sesi lengkap.
+  const handleOnboardingDone = async ({ household }) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSavingHousehold(true);
+    setOnboardingError('');
+    track('Onboarding:done', { household });
+    try {
+      if (!infoSesi().householdId) await postHousehold({ name: household.trim() });
+      const saved = await loadHousehold();
+      if (!saved) throw new Error('Rumah tangga belum terbaca dari server, silakan coba lagi.');
+      setUser(buildUser());
+      setOnboarded(true);
+    } catch (err) {
+      setOnboardingError(err.message);
+    } finally {
+      savingRef.current = false;
+      setSavingHousehold(false);
+    }
   };
 
   const handleNavigate = (id) => {
@@ -71,16 +250,23 @@ export default function App() {
     setSidebarOpen(false);
   };
 
+  if (checking) return <LoadingScreen message="Memuat sesi..." />;
+
   // ternary → tampilkan AuthPage jika belum login
-  if (!authed) return <AuthPage onLogin={handleLogin} />;
+  if (!authed) return <AuthPage onLogin={handleLogin} initialError={authNotice} />;
 
   // ternary → tampilkan Onboarding jika belum setup household
   if (!onboarded) return (
-    <Onboarding onDone={({ name, household }) => {
-      track('Onboarding:done', { household });
-      setUser(u => ({ ...u, name, household }));
-      setOnboarded(true);
-    }} />
+    <>
+      <Onboarding onDone={handleOnboardingDone} />
+      {savingHousehold && <LoadingScreen message="Menyimpan rumah tangga..." overlay />}
+      {onboardingError && (
+        <div role="alert"
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md px-4 py-3 rounded-xl border border-red-200 bg-red-50 text-sm text-red-700">
+          Rumah tangga gagal disimpan. {onboardingError}
+        </div>
+      )}
+    </>
   );
 
   const PageComponent = pages[page];
