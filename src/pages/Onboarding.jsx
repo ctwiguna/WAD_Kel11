@@ -5,7 +5,6 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import Card from '../components/Card';
 
-// PERBAIKAN 1 & 2: Pakai onDone, HAPUS useNavigate/react-router-dom
 const Onboarding = ({ onDone }) => {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -33,22 +32,18 @@ const Onboarding = ({ onDone }) => {
     track('onboarding_submit_started');
 
     try {
-      // PERBAIKAN 3 & 4: HAPUS semua postHousehold/postMember di sini.
-      // Onboarding HANYA mengumpulkan data, App.jsx (handleOnboardingDone) yang akan memanggil API.
+      // PERBAIKAN KONTRAK DATA (Jalan Keluar 1):
+      // 1. household adalah STRING, agar household.trim() di App.jsx tidak TypeError.
+      // 2. members, budgets, goals tetap dikirim agar Chandra bisa memprosesnya di App.jsx.
+      // 3. userId diisi null, karena App.jsx (yang punya akses session user) yang harus mengisinya dengan UUID asli.
       
       const payload = {
-        household: {
-          name: householdName,
-          currency: 'IDR',
-          monthlyStartDay: 1
-        },
+        household: householdName, // <-- STRING, bukan objek
         members: members.map(m => ({
           name: m.name,
           role: m.role,
           canApproveBudget: m.role === 'ayah' || m.role === 'ibu',
-          // PERBAIKAN 5: userId diisi null, bukan 'pending_auth_link'. 
-          // App.jsx atau backend yang akan mengisi userId user yang sedang login untuk peran 'ayah'.
-          userId: null 
+          userId: null // <-- App.jsx akan mengganti ini dengan user ID asli dari session
         })),
         budgets: budgets
           .filter(b => b.limit && Number(b.limit) > 0)
@@ -60,7 +55,7 @@ const Onboarding = ({ onDone }) => {
 
       track('onboarding_data_collected');
       
-      // PERBAIKAN 1: Panggil onDone, serahkan navigasi dan API call ke App.jsx
+      // Serahkan payload ini ke App.jsx
       if (onDone) {
         onDone(payload);
       }
