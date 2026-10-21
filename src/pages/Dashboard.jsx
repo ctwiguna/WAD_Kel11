@@ -3,7 +3,7 @@
 import { useFetch } from '../hooks/useFetch';
 import { getTransactions, getBudgets } from '../API/getData';
 import { track } from '../utils/analytics';
-import Card from '../components/Card';
+import Card from '../components/Card'; 
 import { formatRupiah, formatDate } from '../data/mockData';
 
 const categoryIconMap = {

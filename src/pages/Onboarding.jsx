@@ -1,300 +1,186 @@
-// Onboarding flow: household → anggota → budget → goal → dashboard
-// Data disimpan ke localStorage, siap diganti API nanti
-
 import { useState } from 'react';
-import { save } from '../utils/localStorage';
+import { useNavigate } from 'react-router-dom';
+import { postHousehold, postMember, putBudget, postGoal } from '../API/getData';
 import { track } from '../utils/analytics';
-import { categories, budgets as defaultBudgets } from '../data/mockData';
 
-const STEPS = ['Household', 'Anggota', 'Budget', 'Tujuan'];
+// Import TANPA kurung kurawal karena file komponen menggunakan export default
+import Button from '../components/Button';
+import Input from '../components/Input';
+import Card from '../components/Card';
 
-const memberTemplates = [
-  { role: 'Ayah', avatar: '👨', placeholder: 'cth: Budi Santoso' },
-  { role: 'Ibu',  avatar: '👩', placeholder: 'cth: Sari Santoso' },
-  { role: 'Anak', avatar: '🧒', placeholder: 'cth: Dinda (opsional)' },
-];
+const Onboarding = ({ onComplete }) => {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-export default function Onboarding({ onDone }) {
-  const [step, setStep] = useState(0);
+  const [householdName, setHouseholdName] = useState('');
+  const [members, setMembers] = useState([{ name: '', role: 'ayah' }]);
+  const [budgets, setBudgets] = useState([{ category: 'Makanan', limit: '' }]);
+  const [goals, setGoals] = useState([{ name: '', target: '' }]);
 
-  // Step 0, household
-  const [household, setHousehold] = useState('');
-
-  // Step 1, anggota
-  const [members, setMembers] = useState([
-    { role: 'Ayah', avatar: '👨', name: '' },
-    { role: 'Ibu',  avatar: '👩', name: '' },
-    { role: 'Anak', avatar: '🧒', name: '' },
-  ]);
-
-  // Step 2, budget awal
-  const [budgets, setBudgets] = useState(
-    defaultBudgets.map(b => ({ ...b, limit: b.limit, active: true }))
-  );
-
-  // Step 3, goal pertama (opsional)
-  const [goal, setGoal] = useState({ name: '', target: '', deadline: '', icon: '🎯' });
-  const [skipGoal, setSkipGoal] = useState(false);
-
-  const iconOptions = ['🎯', '✈️', '🏠', '🏍️', '🚗', '📱', '🛡️', '💍', '🎓', '🏥'];
-
-  // ── Validasi per step ──────────────────────────────────────
-  const canNext = () => {
-    if (step === 0) return household.trim().length >= 2;
-    if (step === 1) return members[0].name.trim() || members[1].name.trim();
-    if (step === 2) return budgets.some(b => b.active && b.limit > 0);
-    return true;
+  const handleNext = () => {
+    if (step === 1 && !householdName.trim()) return setError('Nama rumah tangga wajib diisi');
+    if (step === 2 && members.some(m => !m.name.trim())) return setError('Nama anggota wajib diisi');
+    setError('');
+    setStep(step + 1);
   };
 
-  // ── Simpan semua ke localStorage lalu masuk app ────────────
-  const finish = () => {
-    track('Onboarding:complete', { household, memberCount: members.filter(m => m.name).length });
+  const handleBack = () => {
+    if (step > 1) { setStep(step - 1); setError(''); }
+  };
 
-    save('kf_household', { name: household, currency: 'IDR' });
-    save('kf_members', members.filter(m => m.name.trim()));
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    setError('');
+    track('onboarding_submit_started');
 
-    const activeBudgets = budgets
-      .filter(b => b.active && b.limit > 0)
-      .map(b => ({ ...b, spent: 0 }));
-    save('kf_budgets', activeBudgets);
+    try {
+      const household = await postHousehold({ name: householdName, currency: 'IDR', monthlyStartDay: 1 });
 
-    if (!skipGoal && goal.name && goal.target) {
-      save('kf_goals', [{
-        id: String(Date.now()),
-        name: goal.name,
-        target: parseInt(goal.target.replace(/\D/g, ''), 10) || 0,
-        current: 0,
-        deadline: goal.deadline,
-        icon: goal.icon,
-        color: '#3B82F6',
-      }]);
+      for (const member of members) {
+        await postMember({
+          userId: 'pending_auth_link', 
+          name: member.name,
+          roleRaw: member.role,
+          canApproveBudget: member.role === 'ayah' || member.role === 'ibu'
+        });
+      }
+
+      for (const budget of budgets) {
+        if (budget.limit && Number(budget.limit) > 0) {
+          await putBudget(budget.category, Number(budget.limit));
+        }
+      }
+
+      for (const goal of goals) {
+        if (goal.name.trim() && goal.target && Number(goal.target) > 0) {
+          await postGoal({ name: goal.name, target: Number(goal.target), deadline: null, status: 'active' });
+        }
+      }
+
+      track('onboarding_submit_success');
+      if (onComplete) onComplete();
+      else navigate('/dashboard');
+
+    } catch (err) {
+      setError(err.message || 'Gagal menyimpan data.');
+    } finally {
+      setIsLoading(false);
     }
-
-    save('kf_onboarded', true);
-    onDone({ name: members[0].name || household, household });
   };
 
-  const next = () => {
-    track('Onboarding:next', { step });
-    if (step < STEPS.length - 1) setStep(s => s + 1);
-    else finish();
-  };
-
-  const back = () => setStep(s => s - 1);
-
-  // ── Render step ────────────────────────────────────────────
-  const renderStep = () => {
-    if (step === 0) return (
-      <div className="space-y-5">
-        <div className="text-center mb-6">
-          <div className="text-5xl mb-4">🏠</div>
-          <h2 className="text-xl font-bold text-slate-900">Buat Household</h2>
-          <p className="text-sm text-slate-500 mt-1">Nama yang akan dipakai semua anggota keluarga</p>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-slate-600 mb-1.5 block">Nama Keluarga</label>
-          <input
-            type="text"
-            value={household}
-            onChange={e => setHousehold(e.target.value)}
-            placeholder="cth: Keluarga Santoso"
-            autoFocus
-            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-slate-400 transition-colors"
-          />
-          <p className="text-xs text-slate-400 mt-2">Minimal 2 karakter. Bisa diubah nanti di Pengaturan.</p>
-        </div>
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-          <p className="text-xs text-blue-700 font-medium">🔒 Kami tidak meminta password atau PIN bank. Bukti transaksi hanya untuk membuat draft yang kamu review sendiri.</p>
-        </div>
-      </div>
-    );
-
-    if (step === 1) return (
-      <div className="space-y-4">
-        <div className="text-center mb-6">
-          <div className="text-5xl mb-4">👨‍👩‍👧</div>
-          <h2 className="text-xl font-bold text-slate-900">Profil Anggota</h2>
-          <p className="text-sm text-slate-500 mt-1">Tambahkan nama anggota keluarga (minimal 1)</p>
-        </div>
-        {memberTemplates.map((tmpl, i) => (
-          <div key={tmpl.role} className="flex items-center gap-3 p-4 rounded-xl bg-slate-50">
-            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm shrink-0">
-              {tmpl.avatar}
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-slate-500 mb-1">{tmpl.role}</p>
-              <input
-                type="text"
-                value={members[i].name}
-                onChange={e => {
-                  const updated = [...members];
-                  updated[i] = { ...updated[i], name: e.target.value };
-                  setMembers(updated);
-                }}
-                placeholder={tmpl.placeholder}
-                className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-300"
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-
-    if (step === 2) return (
-      <div className="space-y-3">
-        <div className="text-center mb-6">
-          <div className="text-5xl mb-4">📋</div>
-          <h2 className="text-xl font-bold text-slate-900">Budget Awal</h2>
-          <p className="text-sm text-slate-500 mt-1">Set batas pengeluaran per kategori bulan ini</p>
-        </div>
-        <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-          {budgets.map((b, i) => (
-            <div key={b.category}
-              className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${b.active ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100 opacity-50'}`}>
-              <button
-                type="button"
-                onClick={() => {
-                  const updated = [...budgets];
-                  updated[i] = { ...updated[i], active: !updated[i].active };
-                  setBudgets(updated);
-                }}
-                className="w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all"
-                style={{ borderColor: b.active ? b.color : '#CBD5E1', backgroundColor: b.active ? b.color : 'transparent' }}
-              >
-                {b.active && <span className="text-white text-xs">✓</span>}
-              </button>
-              <span className="text-lg">{b.icon}</span>
-              <span className="text-sm font-medium text-slate-700 flex-1">{b.category}</span>
-              <input
-                type="number"
-                value={b.limit}
-                disabled={!b.active}
-                onChange={e => {
-                  const updated = [...budgets];
-                  updated[i] = { ...updated[i], limit: parseInt(e.target.value) || 0 };
-                  setBudgets(updated);
-                }}
-                className="w-28 text-right text-sm px-2 py-1 rounded-lg border border-slate-200 outline-none focus:border-slate-400 disabled:opacity-40"
-                placeholder="0"
-              />
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-slate-400 text-center">Centang kategori yang ingin dianggarkan. Bisa diubah nanti.</p>
-      </div>
-    );
-
-    if (step === 3) return (
-      <div className="space-y-4">
-        <div className="text-center mb-6">
-          <div className="text-5xl mb-4">🎯</div>
-          <h2 className="text-xl font-bold text-slate-900">Tujuan Tabungan</h2>
-          <p className="text-sm text-slate-500 mt-1">Buat satu target keuangan pertama (opsional)</p>
-        </div>
-
-        {/* ternary → skip state */}
-        {skipGoal ? (
-          <div className="text-center py-6">
-            <p className="text-slate-500 text-sm">Kamu bisa tambahkan tujuan tabungan kapan saja dari menu Tujuan.</p>
-            <button onClick={() => setSkipGoal(false)} className="text-blue-500 text-sm mt-3 underline">
-              Batal, isi sekarang
-            </button>
-          </div>
-        ) : (
-          <>
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1.5 block">Nama Tujuan</label>
-              <input type="text" value={goal.name}
-                onChange={e => setGoal({ ...goal, name: e.target.value })}
-                placeholder="cth: Dana Darurat, Liburan Keluarga"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-slate-400 transition-colors" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1.5 block">Target (Rp)</label>
-              <input type="number" value={goal.target}
-                onChange={e => setGoal({ ...goal, target: e.target.value })}
-                placeholder="cth: 10000000"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-slate-400 transition-colors" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1.5 block">Tenggat Waktu</label>
-              <input type="date" value={goal.deadline}
-                onChange={e => setGoal({ ...goal, deadline: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-slate-600 mb-1.5 block">Ikon</label>
-              <div className="flex flex-wrap gap-2">
-                {iconOptions.map(ico => (
-                  <button key={ico} type="button" onClick={() => setGoal({ ...goal, icon: ico })}
-                    className="w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-all"
-                    style={{ backgroundColor: goal.icon === ico ? '#0F172A' : '#F1F5F9' }}>
-                    {ico}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button onClick={() => setSkipGoal(true)}
-              className="w-full text-center text-sm text-slate-400 hover:text-slate-600 transition-colors py-1">
-              Lewati, atur nanti →
-            </button>
-          </>
-        )}
-      </div>
-    );
+  const updateArrayItem = (setter, array, index, field, value) => {
+    const newArr = [...array];
+    newArr[index][field] = value;
+    setter(newArr);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#F8FAFC' }}>
-      <div className="w-full max-w-md">
-        {/* Header logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <span className="text-2xl">💰</span>
-          <span className="font-bold text-slate-900 text-lg">KeluargaFin</span>
-        </div>
-
-        {/* Progress bar */}
-        <div className="flex items-center gap-2 mb-8">
-          {STEPS.map((s, i) => (
-            <div key={s} className="flex-1 flex flex-col items-center gap-1">
-              <div className="w-full h-1.5 rounded-full transition-all"
-                style={{ backgroundColor: i <= step ? '#0F172A' : '#E2E8F0' }} />
-              <span className={`text-[10px] font-medium transition-colors ${i === step ? 'text-slate-800' : 'text-slate-300'}`}>
-                {s}
-              </span>
-            </div>
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center p-6 font-sans">
+      <div className="w-full max-w-2xl mx-auto flex flex-col gap-6">
+        <div className="flex gap-2 justify-center mb-2">
+          {[1, 2, 3, 4].map((s) => (
+            <div key={s} className={`h-1.5 w-10 rounded-full transition-colors ${s <= step ? 'bg-slate-800' : 'bg-slate-200'}`} />
           ))}
         </div>
 
-        {/* Card konten */}
-        <div className="bg-white rounded-3xl p-6 mb-4" style={{ boxShadow: 'rgba(0,0,0,0.08) 0px 8px 32px -8px' }}>
-          {renderStep()}
-        </div>
+        {error && (
+          <Card className="bg-red-50 border border-red-200 text-red-700 text-sm p-4 rounded-xl">
+            {error}
+          </Card>
+        )}
 
-        {/* Tombol navigasi */}
-        <div className="flex gap-3">
-          {step > 0 && (
-            <button onClick={back}
-              className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-              ← Kembali
-            </button>
-          )}
-          <button
-            onClick={next}
-            disabled={!canNext()}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40"
-            style={{ backgroundColor: '#0F172A' }}
-          >
-            {step === STEPS.length - 1
-              ? (skipGoal ? 'Masuk Dashboard →' : '🎉 Mulai Pakai!')
-              : 'Lanjut →'}
-          </button>
-        </div>
+        {step === 1 && (
+          <Card className="p-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Nama Rumah Tangga</h2>
+            <p className="text-sm text-slate-500 mb-6">Sebutkan nama keluarga atau rumah tangga Anda.</p>
+            <Input label="Nama Rumah Tangga" value={householdName} onChange={(e) => setHouseholdName(e.target.value)} placeholder="Contoh: Keluarga Besar" />
+            <div className="flex gap-3 mt-8 justify-end">
+              <Button variant="outline" onClick={handleNext}>Lanjut</Button>
+            </div>
+          </Card>
+        )}
 
-        <p className="text-center text-xs text-slate-400 mt-4">
-          Langkah {step + 1} dari {STEPS.length}
-        </p>
+        {step === 2 && (
+          <Card className="p-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Anggota Keluarga</h2>
+            <p className="text-sm text-slate-500 mb-6">Siapa saja yang akan menggunakan KeluargaFin?</p>
+            <div className="flex flex-col gap-4">
+              {members.map((member, index) => (
+                <div key={index} className="flex gap-3 items-end">
+                  <Input label="Nama Tampilan" value={member.name} onChange={(e) => updateArrayItem(setMembers, members, index, 'name', e.target.value)} placeholder="Misal: Ayah / Budi" className="flex-1" />
+                  <select value={member.role} onChange={(e) => updateArrayItem(setMembers, members, index, 'role', e.target.value)} className="h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-slate-800 w-32 mb-0.5">
+                    <option value="ayah">Ayah</option>
+                    <option value="ibu">Ibu</option>
+                    <option value="anak">Anak</option>
+                  </select>
+                  {members.length > 1 && <Button variant="danger" onClick={() => setMembers(members.filter((_, i) => i !== index))}>Hapus</Button>}
+                </div>
+              ))}
+              <Button variant="outline" onClick={() => setMembers([...members, { name: '', role: 'anak' }])}>+ Tambah Anggota Lain</Button>
+            </div>
+            <div className="flex gap-3 mt-8 justify-between">
+              <Button variant="ghost" onClick={handleBack}>Kembali</Button>
+              <Button variant="primary" onClick={handleNext}>Lanjut</Button>
+            </div>
+          </Card>
+        )}
+
+        {step === 3 && (
+          <Card className="p-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Anggaran Bulan Ini</h2>
+            <p className="text-sm text-slate-500 mb-6">Tentukan batas pengeluaran per kategori (opsional).</p>
+            <div className="flex flex-col gap-4">
+              {budgets.map((budget, index) => (
+                <div key={index} className="flex gap-3 items-end">
+                  <select value={budget.category} onChange={(e) => updateArrayItem(setBudgets, budgets, index, 'category', e.target.value)} className="h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-slate-800 flex-1 mb-0.5">
+                    <option value="Makanan">Makanan & Minuman</option>
+                    <option value="Tagihan">Tagihan & Utilitas</option>
+                    <option value="Transportasi">Transportasi</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
+                  <Input label="Batas (Rp)" type="number" value={budget.limit} onChange={(e) => updateArrayItem(setBudgets, budgets, index, 'limit', e.target.value)} placeholder="0" className="w-40" />
+                  <Button variant="danger" onClick={() => setBudgets(budgets.filter((_, i) => i !== index))}>✕</Button>
+                </div>
+              ))}
+              <Button variant="outline" onClick={() => setBudgets([...budgets, { category: 'Lainnya', limit: '' }])}>+ Tambah Kategori</Button>
+            </div>
+            <div className="flex gap-3 mt-8 justify-between">
+              <Button variant="ghost" onClick={handleBack}>Kembali</Button>
+              <Button variant="primary" onClick={handleNext}>Lanjut</Button>
+            </div>
+          </Card>
+        )}
+
+        {step === 4 && (
+          <Card className="p-8">
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Tujuan Menabung</h2>
+            <p className="text-sm text-slate-500 mb-6">Apa yang ingin keluarga capai? (opsional)</p>
+            <div className="flex flex-col gap-4">
+              {goals.map((goal, index) => (
+                <div key={index} className="flex flex-col gap-3 p-4 border border-slate-100 rounded-xl bg-slate-50/50">
+                  <Input label="Nama Tujuan" value={goal.name} onChange={(e) => updateArrayItem(setGoals, goals, index, 'name', e.target.value)} placeholder="Misal: Dana Darurat" />
+                  <div className="flex gap-3 items-end">
+                    <Input label="Target (Rp)" type="number" value={goal.target} onChange={(e) => updateArrayItem(setGoals, goals, index, 'target', e.target.value)} placeholder="0" className="flex-1" />
+                    <Button variant="danger" onClick={() => setGoals(goals.filter((_, i) => i !== index))}>Hapus</Button>
+                  </div>
+                </div>
+              ))}
+              <Button variant="outline" onClick={() => setGoals([...goals, { name: '', target: '' }])}>+ Tambah Tujuan Baru</Button>
+            </div>
+            <div className="flex gap-3 mt-8 justify-between">
+              <Button variant="ghost" onClick={handleBack}>Kembali</Button>
+              <Button variant="primary" onClick={handleSubmit} disabled={isLoading}>
+                {isLoading ? 'Menyimpan...' : 'Selesai & Masuk Dashboard'}
+              </Button>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );
-}
+};
+
+// WAJIB: Export default agar cocok dengan App.jsx
+export default Onboarding;
