@@ -22,7 +22,7 @@ const Settings = () => {
 
   const [editProfile, setEditProfile] = useState({ fullName: '', avatar: '' });
   const [editHousehold, setEditHousehold] = useState({ name: '' });
-  const [newMember, setNewMember] = useState({ name: '', role: 'anak', email: '' });
+  const [newMember, setNewMember] = useState({ name: '', role: 'anak' });
   const [newAccount, setNewAccount] = useState({ name: '', type: 'bank', balance: '' });
 
   useEffect(() => { loadData(); }, []);
@@ -39,13 +39,21 @@ const Settings = () => {
       setProfile(p); setHousehold(h); setMembers(m); setAccounts(a);
       if (p) setEditProfile({ fullName: p.fullName, avatar: p.avatar });
       if (h) setEditHousehold({ name: h.name });
-    } catch (err) { setError('Gagal memuat data.'); } 
-    finally { setIsLoading(false); }
+    } catch (err) { 
+      setError('Gagal memuat data pengaturan.'); 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const handleSaveProfile = async () => {
-    try { await putProfile(editProfile); setSuccess('Profil diperbarui'); setTimeout(() => setSuccess(''), 3000); } 
-    catch (err) { setError(err.message); }
+    try { 
+      await putProfile(editProfile); 
+      setSuccess('Profil berhasil diperbarui'); 
+      setTimeout(() => setSuccess(''), 3000); 
+    } catch (err) { 
+      setError(err.message); 
+    }
   };
 
   const handleSaveHousehold = async () => {
@@ -53,8 +61,11 @@ const Settings = () => {
     try { 
       await putHousehold(household.id, { name: editHousehold.name }); 
       setHousehold({ ...household, name: editHousehold.name }); 
-      setSuccess('Nama rumah tangga diubah'); setTimeout(() => setSuccess(''), 3000); 
-    } catch (err) { setError(err.message); }
+      setSuccess('Nama rumah tangga berhasil diubah'); 
+      setTimeout(() => setSuccess(''), 3000); 
+    } catch (err) { 
+      setError(err.message); 
+    }
   };
 
   const handleAddMember = async () => {
@@ -62,41 +73,61 @@ const Settings = () => {
     
     setError('');
     try {
-      // PERBAIKAN: userId diisi null, bukan 'pending_auth_link'
-      // Backend akan menangani validasi. UI juga sudah diberi tahu bahwa anggota perlu akun.
+      // PERBAIKAN: Sesuai arahan reviewer, JANGAN gunakan string buatan seperti 'pending_auth_link'.
+      // Kita kirim null. Jika adapters.js atau backend menolaknya karena validasi user_id wajib,
+      // error tersebut akan ditangkap di catch block dan ditampilkan sebagai pesan yang ramah.
       const added = await postMember({ 
         userId: null, 
         name: newMember.name, 
         roleRaw: newMember.role, 
         canApproveBudget: newMember.role !== 'anak' 
       });
+      
       setMembers([...members, added]); 
-      setNewMember({ name: '', role: 'anak', email: '' }); 
-      setSuccess('Anggota ditambahkan');
+      setNewMember({ name: '', role: 'anak' }); 
+      setSuccess('Anggota berhasil ditambahkan');
     } catch (err) { 
-      // Jika backend menolak karena userId null, tampilkan pesan yang ramah
-      setError(err.message || 'Gagal menambah anggota. Pastikan anggota telah memiliki akun KeluargaFin.'); 
+      // Menangkap error validasi dari adapters.js atau backend secara ramah
+      setError(err.message || 'Gagal menambah anggota. Pastikan anggota telah memiliki akun KeluargaFin (fitur undangan email akan ditambahkan segera).'); 
     }
   };
 
   const handleDeleteMember = async (id) => {
-    if (!window.confirm('Yakin ingin mengeluarkan anggota ini?')) return;
-    try { await deleteMember(id); setMembers(members.filter(m => m.id !== id)); setSuccess('Anggota dikeluarkan'); } 
-    catch (err) { setError(err.message); }
+    if (!window.confirm('Yakin ingin mengeluarkan anggota ini dari rumah tangga?')) return;
+    try { 
+      await deleteMember(id); 
+      setMembers(members.filter(m => m.id !== id)); 
+      setSuccess('Anggota berhasil dikeluarkan'); 
+    } catch (err) { 
+      setError(err.message); 
+    }
   };
 
   const handleAddAccount = async () => {
-    if (!newAccount.name.trim()) return;
+    if (!newAccount.name.trim()) return setError('Nama dompet wajib diisi');
     try {
-      const added = await postAccount({ name: newAccount.name, type: newAccount.type, balance: newAccount.balance || 0 });
-      setAccounts([...accounts, added]); setNewAccount({ name: '', type: 'bank', balance: '' }); setSuccess('Dompet ditambahkan');
-    } catch (err) { setError(err.message); }
-    };
+      const added = await postAccount({ 
+        name: newAccount.name, 
+        type: newAccount.type, 
+        balance: newAccount.balance || 0 
+      });
+      setAccounts([...accounts, added]); 
+      setNewAccount({ name: '', type: 'bank', balance: '' }); 
+      setSuccess('Dompet berhasil ditambahkan');
+    } catch (err) { 
+      setError(err.message); 
+    }
+  };
 
   const handleDeleteAccount = async (id) => {
     if (!window.confirm('Yakin ingin menghapus dompet ini?')) return;
-    try { await deleteAccount(id); setAccounts(accounts.filter(a => a.id !== id)); setSuccess('Dompet dihapus'); } 
-    catch (err) { setError(err.message); }
+    try { 
+      await deleteAccount(id); 
+      setAccounts(accounts.filter(a => a.id !== id)); 
+      setSuccess('Dompet berhasil dihapus'); 
+    } catch (err) { 
+      setError(err.message); 
+    }
   };
 
   if (isLoading) return <div className="p-8 text-center text-slate-500">Memuat pengaturan...</div>;
@@ -108,8 +139,13 @@ const Settings = () => {
 
         <div className="flex gap-1 border-b border-slate-200 overflow-x-auto">
           {['profil', 'rumah', 'anggota', 'dompet'].map(tab => (
-            <button key={tab} onClick={() => { setActiveTab(tab); setError(''); setSuccess(''); }}
-              className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-colors ${activeTab === tab ? 'border-slate-800 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            <button 
+              key={tab} 
+              onClick={() => { setActiveTab(tab); setError(''); setSuccess(''); }}
+              className={`px-4 py-2.5 text-sm font-semibold capitalize border-b-2 transition-colors ${
+                activeTab === tab ? 'border-slate-800 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
               {tab}
             </button>
           ))}
@@ -118,67 +154,101 @@ const Settings = () => {
         {error && <Card className="bg-red-50 border border-red-200 text-red-700 text-sm p-4">{error}</Card>}
         {success && <Card className="bg-green-50 border border-green-200 text-green-700 text-sm p-4">{success}</Card>}
 
+        {/* TAB: Profil */}
         {activeTab === 'profil' && profile && (
           <Card className="p-6 flex flex-col gap-4">
             <h2 className="text-lg font-bold text-slate-900">Profil Pribadi</h2>
             <Input label="Email" value={profile.email} disabled className="opacity-60" />
             <Input label="Nama Lengkap" value={editProfile.fullName} onChange={(e) => setEditProfile({...editProfile, fullName: e.target.value})} />
             <Input label="Emoji Avatar" value={editProfile.avatar} onChange={(e) => setEditProfile({...editProfile, avatar: e.target.value})} placeholder="😊" maxLength={2} />
-            <div className="flex justify-end mt-2"><Button variant="primary" onClick={handleSaveProfile}>Simpan Perubahan</Button></div>
+            <div className="flex justify-end mt-2">
+              <Button variant="primary" onClick={handleSaveProfile}>Simpan Perubahan</Button>
+            </div>
           </Card>
         )}
 
+        {/* TAB: Rumah Tangga */}
         {activeTab === 'rumah' && household && (
           <Card className="p-6 flex flex-col gap-4">
             <h2 className="text-lg font-bold text-slate-900">Pengaturan Rumah Tangga</h2>
             <Input label="Nama Rumah Tangga" value={editHousehold.name} onChange={(e) => setEditHousehold({...editHousehold, name: e.target.value})} />
-            <div className="flex justify-end mt-2"><Button variant="primary" onClick={handleSaveHousehold}>Simpan Nama</Button></div>
+            <div className="flex justify-end mt-2">
+              <Button variant="primary" onClick={handleSaveHousehold}>Simpan Nama</Button>
+            </div>
           </Card>
         )}
 
+        {/* TAB: Anggota */}
         {activeTab === 'anggota' && (
           <div className="flex flex-col gap-4">
             <Card className="p-6 flex flex-col gap-4">
               <h2 className="text-lg font-bold text-slate-900">Tambah Anggota Baru</h2>
               <div className="bg-blue-50 border border-blue-200 text-blue-700 text-sm p-3 rounded-lg mb-2">
-                <strong>Catatan:</strong> Anggota harus memiliki akun KeluargaFin terlebih dahulu. 
+                <strong>Catatan:</strong> Anggota harus memiliki akun KeluargaFin terlebih dahulu. Fitur undangan via email akan ditambahkan pada iterasi berikutnya.
               </div>
-              <Input label="Nama" value={newMember.name} onChange={(e) => setNewMember({...newMember, name: e.target.value})} placeholder="Nama anggota" />
+              <Input label="Nama Tampilan" value={newMember.name} onChange={(e) => setNewMember({...newMember, name: e.target.value})} placeholder="Misal: Paman Budi" />
               <div className="flex gap-3 items-end">
-                <select value={newMember.role} onChange={(e) => setNewMember({...newMember, role: e.target.value})} className="h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-slate-800 flex-1 mb-0.5">
-                  <option value="ayah">Ayah</option><option value="ibu">Ibu</option><option value="anak">Anak</option>
+                <select 
+                  value={newMember.role} 
+                  onChange={(e) => setNewMember({...newMember, role: e.target.value})} 
+                  className="h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-slate-800 flex-1 mb-0.5"
+                >
+                  <option value="ayah">Ayah</option>
+                  <option value="ibu">Ibu</option>
+                  <option value="anak">Anak</option>
                 </select>
               </div>
-              <div className="flex justify-end"><Button variant="primary" onClick={handleAddMember}>Tambah Anggota</Button></div>
+              <div className="flex justify-end">
+                <Button variant="primary" onClick={handleAddMember}>Tambah Anggota</Button>
+              </div>
             </Card>
+            
             <div className="flex flex-col gap-3">
               {members.map(member => (
                 <Card key={member.id} className="flex justify-between items-center p-4">
-                  <div><p className="text-sm font-semibold text-slate-900">{member.name}</p><p className="text-xs text-slate-500 capitalize">{member.roleRaw}</p></div>
-                  {member.roleRaw !== 'ayah' && <Button variant="danger" onClick={() => handleDeleteMember(member.id)}>Keluarkan</Button>}
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{member.name}</p>
+                    <p className="text-xs text-slate-500 capitalize">{member.roleRaw}</p>
+                  </div>
+                  {member.roleRaw !== 'ayah' && (
+                    <Button variant="danger" onClick={() => handleDeleteMember(member.id)}>Keluarkan</Button>
+                  )}
                 </Card>
               ))}
             </div>
           </div>
         )}
 
+        {/* TAB: Dompet */}
         {activeTab === 'dompet' && (
           <div className="flex flex-col gap-4">
             <Card className="p-6 flex flex-col gap-4">
               <h2 className="text-lg font-bold text-slate-900">Tambah Dompet Baru</h2>
               <Input label="Nama Dompet" value={newAccount.name} onChange={(e) => setNewAccount({...newAccount, name: e.target.value})} placeholder="Misal: BCA / Tunai" />
               <div className="flex gap-3 items-end">
-                <select value={newAccount.type} onChange={(e) => setNewAccount({...newAccount, type: e.target.value})} className="h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-slate-800 flex-1 mb-0.5">
-                  <option value="bank">Bank</option><option value="ewallet">E-Wallet</option><option value="cash">Tunai</option>
+                <select 
+                  value={newAccount.type} 
+                  onChange={(e) => setNewAccount({...newAccount, type: e.target.value})} 
+                  className="h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-slate-800 flex-1 mb-0.5"
+                >
+                  <option value="bank">Bank</option>
+                  <option value="ewallet">E-Wallet</option>
+                  <option value="cash">Tunai</option>
                 </select>
                 <Input label="Saldo Awal" type="number" value={newAccount.balance} onChange={(e) => setNewAccount({...newAccount, balance: e.target.value})} placeholder="0" className="w-40" />
               </div>
-              <div className="flex justify-end"><Button variant="primary" onClick={handleAddAccount}>Tambah Dompet</Button></div>
+              <div className="flex justify-end">
+                <Button variant="primary" onClick={handleAddAccount}>Tambah Dompet</Button>
+              </div>
             </Card>
+            
             <div className="flex flex-col gap-3">
               {accounts.map(acc => (
                 <Card key={acc.id} className="flex justify-between items-center p-4">
-                  <div><p className="text-sm font-semibold text-slate-900">{acc.name}</p><p className="text-xs text-slate-500 capitalize">{acc.type} • Rp {acc.balance.toLocaleString('id-ID')}</p></div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{acc.name}</p>
+                    <p className="text-xs text-slate-500 capitalize">{acc.type} • Rp {acc.balance.toLocaleString('id-ID')}</p>
+                  </div>
                   <Button variant="danger" onClick={() => handleDeleteAccount(acc.id)}>Hapus</Button>
                 </Card>
               ))}
