@@ -54,7 +54,7 @@ export const STATUS_MAP = {
 
 const ROLE_LABEL = { ayah: 'Ayah', ibu: 'Ibu', anak: 'Anak' };
 
-// ------------------------------------------------------------------- penolong
+// Fungsi bantu
 
 export function periodFromMonthKey(monthKey) {
   // '2026-09' menjadi '2026-09-01' sesuai tipe DATE pada kontrak backend

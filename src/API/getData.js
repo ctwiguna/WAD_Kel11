@@ -658,7 +658,7 @@ export async function getReportsMembers(dari, sampai) {
   });
 }
 
-// Mengunduh berkas CSV yang dibuat backend. Di luar peramban, isinya dikembalikan saja.
+// Mengunduh berkas CSV yang dibuat backend. Di luar browser, isinya dikembalikan saja.
 export async function exportReportsCsv(dari, sampai) {
   track('getData:exportReportsCsv', { dari, sampai });
   if (modeDemo()) throw new Error('Ekspor CSV hanya tersedia setelah masuk.');

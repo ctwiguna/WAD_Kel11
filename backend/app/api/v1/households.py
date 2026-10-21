@@ -99,7 +99,7 @@ async def hapus_rumah(
     token: str = Depends(get_access_token),
 ) -> dict:
     """Penghapusan lunak. Hanya ayah yang diizinkan."""
-    # PERBAIKAN 4: Cek peran terlebih dahulu agar mengembalikan 403, bukan 404
+    # PERBAIKAN 4: Cek peran dulu agar mengembalikan 403, bukan 404
     peran = await rest_select(
         "household_members", 
         {"household_id": f"eq.{id}", "user_id": f"eq.{user.get('sub')}", "select": "role", "limit": 1}, 
