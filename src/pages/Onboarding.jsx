@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { postHousehold, postMember, putBudget, postGoal } from '../API/getData';
 import { track } from '../utils/analytics';
 
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Card from '../components/Card';
 
-// PERBAIKAN 1: Ganti onComplete menjadi onDone (sesuai App.jsx)
+// PERBAIKAN 1 & 2: Pakai onDone, HAPUS useNavigate/react-router-dom
 const Onboarding = ({ onDone }) => {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,11 +33,10 @@ const Onboarding = ({ onDone }) => {
     track('onboarding_submit_started');
 
     try {
-      // PERBAIKAN 2: Hapus postHousehold dari sini, biarkan App yang membuat
-      // PERBAIKAN 3: Hapus postMember dengan userId palsu, kumpulkan data saja
+      // PERBAIKAN 3 & 4: HAPUS semua postHousehold/postMember di sini.
+      // Onboarding HANYA mengumpulkan data, App.jsx (handleOnboardingDone) yang akan memanggil API.
       
-      // Kumpulkan semua data dan kirim ke App via onDone
-      const data = {
+      const payload = {
         household: {
           name: householdName,
           currency: 'IDR',
@@ -47,28 +45,24 @@ const Onboarding = ({ onDone }) => {
         members: members.map(m => ({
           name: m.name,
           role: m.role,
-          canApproveBudget: m.role === 'ayah' || m.role === 'ibu'
-          // userId akan diisi App setelah lookup atau invitation
+          canApproveBudget: m.role === 'ayah' || m.role === 'ibu',
+          // PERBAIKAN 5: userId diisi null, bukan 'pending_auth_link'. 
+          // App.jsx atau backend yang akan mengisi userId user yang sedang login untuk peran 'ayah'.
+          userId: null 
         })),
         budgets: budgets
           .filter(b => b.limit && Number(b.limit) > 0)
-          .map(b => ({
-            category: b.category,
-            limit: Number(b.limit)
-          })),
+          .map(b => ({ category: b.category, limit: Number(b.limit) })),
         goals: goals
           .filter(g => g.name.trim() && g.target && Number(g.target) > 0)
-          .map(g => ({
-            name: g.name,
-            target: Number(g.target)
-          }))
+          .map(g => ({ name: g.name, target: Number(g.target) }))
       };
 
       track('onboarding_data_collected');
       
-      // PERBAIKAN 1: Panggil onDone (bukan onComplete), biarkan App handle navigation
+      // PERBAIKAN 1: Panggil onDone, serahkan navigasi dan API call ke App.jsx
       if (onDone) {
-        onDone(data);
+        onDone(payload);
       }
 
     } catch (err) {
