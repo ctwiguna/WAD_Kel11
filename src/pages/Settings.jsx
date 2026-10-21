@@ -22,7 +22,7 @@ const Settings = () => {
 
   const [editProfile, setEditProfile] = useState({ fullName: '', avatar: '' });
   const [editHousehold, setEditHousehold] = useState({ name: '' });
-  const [newMember, setNewMember] = useState({ name: '', role: 'anak' });
+  const [newMember, setNewMember] = useState({ name: '', role: 'anak', email: '' });
   const [newAccount, setNewAccount] = useState({ name: '', type: 'bank', balance: '' });
 
   useEffect(() => { loadData(); }, []);
@@ -57,12 +57,33 @@ const Settings = () => {
     } catch (err) { setError(err.message); }
   };
 
+  // PERBAIKAN 3: Tambah anggota dengan email, validasi UUID
   const handleAddMember = async () => {
-    if (!newMember.name.trim()) return;
+    if (!newMember.name.trim()) return setError('Nama anggota wajib diisi');
+    if (!newMember.email.trim()) return setError('Email anggota wajib diisi');
+    
+    setError('');
     try {
-      const added = await postMember({ userId: 'pending_auth_link', name: newMember.name, roleRaw: newMember.role, canApproveBudget: newMember.role !== 'anak' });
-      setMembers([...members, added]); setNewMember({ name: '', role: 'anak' }); setSuccess('Anggota ditambahkan');
-    } catch (err) { setError(err.message); }
+      // Catatan: Untuk produksi, perlu endpoint backend untuk lookup user by email
+      // Untuk sekarang, tampilkan pesan bahwa fitur ini memerlukan alur undangan
+      setError('Fitur tambah anggota memerlukan alur undangan. Anggota harus mendaftar akun KeluargaFin terlebih dahulu, lalu Ayah dapat menambahkan mereka melalui email.');
+      return;
+      
+      // Kode di bawah ini akan aktif setelah backend menyediakan endpoint lookup user
+      /*
+      const added = await postMember({ 
+        userId: 'valid-uuid-dari-backend', // Akan diisi setelah lookup
+        name: newMember.name, 
+        roleRaw: newMember.role, 
+        canApproveBudget: newMember.role !== 'anak' 
+      });
+      setMembers([...members, added]); 
+      setNewMember({ name: '', role: 'anak', email: '' }); 
+      setSuccess('Anggota ditambahkan');
+      */
+    } catch (err) { 
+      setError(err.message); 
+    }
   };
 
   const handleDeleteMember = async (id) => {
@@ -126,9 +147,13 @@ const Settings = () => {
           <div className="flex flex-col gap-4">
             <Card className="p-6 flex flex-col gap-4">
               <h2 className="text-lg font-bold text-slate-900">Tambah Anggota Baru</h2>
+              <div className="bg-blue-50 border border-blue-200 text-blue-700 text-sm p-3 rounded-lg">
+                <strong>Catatan:</strong> Anggota harus memiliki akun KeluargaFin terlebih dahulu. Fitur undangan akan ditambahkan pada iterasi berikutnya.
+              </div>
+              <Input label="Nama" value={newMember.name} onChange={(e) => setNewMember({...newMember, name: e.target.value})} placeholder="Nama anggota" />
+              <Input label="Email" value={newMember.email} onChange={(e) => setNewMember({...newMember, email: e.target.value})} placeholder="email@contoh.com" type="email" />
               <div className="flex gap-3 items-end">
-                <Input label="Nama" value={newMember.name} onChange={(e) => setNewMember({...newMember, name: e.target.value})} className="flex-1" placeholder="Nama anggota" />
-                <select value={newMember.role} onChange={(e) => setNewMember({...newMember, role: e.target.value})} className="h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-slate-800 w-32 mb-0.5">
+                <select value={newMember.role} onChange={(e) => setNewMember({...newMember, role: e.target.value})} className="h-11 px-4 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-slate-800 flex-1 mb-0.5">
                   <option value="ayah">Ayah</option><option value="ibu">Ibu</option><option value="anak">Anak</option>
                 </select>
               </div>
@@ -173,5 +198,4 @@ const Settings = () => {
   );
 };
 
-// WAJIB: Export default agar cocok dengan App.jsx
 export default Settings;

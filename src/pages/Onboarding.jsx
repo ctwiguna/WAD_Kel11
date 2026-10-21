@@ -1,15 +1,13 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { postHousehold, postMember, putBudget, postGoal } from '../API/getData';
 import { track } from '../utils/analytics';
 
-// Import TANPA kurung kurawal karena file komponen menggunakan export default
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Card from '../components/Card';
 
-const Onboarding = ({ onComplete }) => {
-  const navigate = useNavigate();
+// PERBAIKAN 1: Ganti onComplete menjadi onDone (sesuai App.jsx)
+const Onboarding = ({ onDone }) => {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,35 +34,46 @@ const Onboarding = ({ onComplete }) => {
     track('onboarding_submit_started');
 
     try {
-      const household = await postHousehold({ name: householdName, currency: 'IDR', monthlyStartDay: 1 });
+      // PERBAIKAN 2: Hapus postHousehold dari sini, biarkan App yang membuat
+      // PERBAIKAN 3: Hapus postMember dengan userId palsu, kumpulkan data saja
+      
+      // Kumpulkan semua data dan kirim ke App via onDone
+      const data = {
+        household: {
+          name: householdName,
+          currency: 'IDR',
+          monthlyStartDay: 1
+        },
+        members: members.map(m => ({
+          name: m.name,
+          role: m.role,
+          canApproveBudget: m.role === 'ayah' || m.role === 'ibu'
+          // userId akan diisi App setelah lookup atau invitation
+        })),
+        budgets: budgets
+          .filter(b => b.limit && Number(b.limit) > 0)
+          .map(b => ({
+            category: b.category,
+            limit: Number(b.limit)
+          })),
+        goals: goals
+          .filter(g => g.name.trim() && g.target && Number(g.target) > 0)
+          .map(g => ({
+            name: g.name,
+            target: Number(g.target)
+          }))
+      };
 
-      for (const member of members) {
-        await postMember({
-          userId: 'pending_auth_link', 
-          name: member.name,
-          roleRaw: member.role,
-          canApproveBudget: member.role === 'ayah' || member.role === 'ibu'
-        });
+      track('onboarding_data_collected');
+      
+      // PERBAIKAN 1: Panggil onDone (bukan onComplete), biarkan App handle navigation
+      if (onDone) {
+        onDone(data);
       }
-
-      for (const budget of budgets) {
-        if (budget.limit && Number(budget.limit) > 0) {
-          await putBudget(budget.category, Number(budget.limit));
-        }
-      }
-
-      for (const goal of goals) {
-        if (goal.name.trim() && goal.target && Number(goal.target) > 0) {
-          await postGoal({ name: goal.name, target: Number(goal.target), deadline: null, status: 'active' });
-        }
-      }
-
-      track('onboarding_submit_success');
-      if (onComplete) onComplete();
-      else navigate('/dashboard');
 
     } catch (err) {
       setError(err.message || 'Gagal menyimpan data.');
+      track('onboarding_submit_failed', { message: err.message });
     } finally {
       setIsLoading(false);
     }
@@ -172,7 +181,7 @@ const Onboarding = ({ onComplete }) => {
             <div className="flex gap-3 mt-8 justify-between">
               <Button variant="ghost" onClick={handleBack}>Kembali</Button>
               <Button variant="primary" onClick={handleSubmit} disabled={isLoading}>
-                {isLoading ? 'Menyimpan...' : 'Selesai & Masuk Dashboard'}
+                {isLoading ? 'Menyimpan...' : 'Selesai'}
               </Button>
             </div>
           </Card>
@@ -182,5 +191,4 @@ const Onboarding = ({ onComplete }) => {
   );
 };
 
-// WAJIB: Export default agar cocok dengan App.jsx
 export default Onboarding;
