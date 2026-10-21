@@ -1,4 +1,4 @@
-# uji penolong klien Supabase
+# uji fungsi bantu klien Supabase
 import json
 
 import pytest
