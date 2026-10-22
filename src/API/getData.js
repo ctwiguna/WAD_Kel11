@@ -294,8 +294,8 @@ export async function getBudgets() {
 
 // Batas anggaran diubah lewat nama kategori, sama seperti pemakaian di halaman Anggaran.
 // Kalau anggaran bulan berjalan untuk kategori itu belum ada, dibuat baru.
-export async function putBudget(category, limit) {
-  track('getData:putBudget', { category, limit });
+export async function putBudget(category, limit, periode) {
+  track('getData:putBudget', { category, limit, periode });
   if (modeDemo()) {
     const lama = load('kf_budgets', mockBudgets);
     const baru = lama.map((b) => (b.category === category ? { ...b, limit } : b));
@@ -303,7 +303,8 @@ export async function putBudget(category, limit) {
     return baru;
   }
   return jalankan(async () => {
-    const bulan = bulanBerjalan();
+    // periode dipakai kalau halaman Anggaran sedang menampilkan bulan lain
+    const bulan = periode || bulanBerjalan();
     const daftar = await getBudgets();
     const ada = daftar.find((b) => b.category === category && b.period === bulan);
     if (ada) {

@@ -1,11 +1,12 @@
-// Alur data: Transactions (luar fetch) → getTransactions → localStorage → tampilan
+// Alur data: Transactions → getTransactions, getCategories, getMembers, dan getAccounts
+// → backend lewat getData.js. Tidak ada lagi daftar anggota atau dompet dari data contoh.
 
 import { useState } from 'react';
 import { useFetch } from '../hooks/useFetch';
-import { getTransactions, postTransaction, getCategories } from '../API/getData';
+import { getTransactions, postTransaction, getCategories, getMembers, getAccounts } from '../API/getData';
 import { track } from '../utils/analytics';
 import { useToast } from '../context/ToastContext';
-import { members, accounts, formatRupiah, formatDate } from '../data/mockData';
+import { formatRupiah, formatDate } from '../data/mockData';
 import Card from '../components/Card';
 import Button from '../components/Button';
 
@@ -19,24 +20,31 @@ const statusConfig = {
   dibatalkan: { label: 'Dibatalkan', bg: '#FEE2E2', color: '#991B1B' },
 };
 
-const emptyForm = {
-  date: new Date().toISOString().split('T')[0],
-  type: 'expense',
-  amount: '',
-  category: '',
-  member: members[0],
-  merchant: '',
-  notes: '',
-  account: accounts[0],
-  status: 'selesai',
-};
+// Formulir awal dibangun setelah daftar anggota dan dompet selesai dimuat dari backend,
+// karena pilihan anggota dan dompet tidak lagi berasal dari data contoh.
+function buatFormAwal(members = [], accounts = []) {
+  return {
+    date: new Date().toISOString().split('T')[0],
+    type: 'expense',
+    amount: '',
+    category: '',
+    member: members[0] ?? '',
+    toMember: members[0] ?? '',
+    merchant: '',
+    notes: '',
+    account: accounts[0] ?? '',
+    toAccount: accounts[0] ?? '',
+  };
+}
 
 // Cek duplikat: merchant sama + jumlah sama + tanggal sama
 function findDuplicate(txns, form) {
-  const amt = parseInt(form.amount.replace(/\D/g, ''), 10) || 0;
+  const amt = parseInt(String(form.amount).replace(/\D/g, ''), 10) || 0;
+  const merchant = String(form.merchant ?? '').trim().toLowerCase();
+  if (!merchant) return null;
   return txns.find(t =>
     t.date === form.date &&
-    t.merchant.toLowerCase() === form.merchant.toLowerCase() &&
+    String(t.merchant ?? '').trim().toLowerCase() === merchant &&
     t.amount === amt
   );
 }
@@ -44,12 +52,19 @@ function findDuplicate(txns, form) {
 export default function Transactions() {
   const { showToast } = useToast();
   const { data: categoriesData } = useFetch(getCategories);
+  const { data: membersData } = useFetch(getMembers);
+  const { data: accountsData } = useFetch(getAccounts);
   const categories = (categoriesData ?? []).filter(c => !c.archived);
+
+  // Nama anggota dan nama dompet dipakai sebagai pilihan formulir dan penyaring.
+  // Nilainya berasal dari backend lewat getMembers dan getAccounts, bukan data contoh.
+  const members = (membersData ?? []).map(m => m.name).filter(Boolean);
+  const accounts = (accountsData ?? []).map(a => a.name).filter(Boolean);
 
   const [filter, setFilter]           = useState('all');
   const [memberFilter, setMemberFilter] = useState('all');
   const [showForm, setShowForm]       = useState(false);
-  const [form, setForm]               = useState(emptyForm);
+  const [form, setForm]               = useState(() => buatFormAwal());
   const [submitting, setSubmitting]   = useState(false);
   const [dupWarning, setDupWarning]   = useState(null); // transaksi duplikat yg ditemukan
   const [forceSave, setForceSave]     = useState(false); // user pilih tetap simpan
@@ -98,27 +113,34 @@ export default function Transactions() {
     }
 
     setSubmitting(true);
-    const newTxn = {
-      id: String(Date.now()),
-      ...form,
-      amount: parseInt(form.amount.replace(/\D/g, ''), 10) || 0,
-    };
+    try {
+      // id dibuat backend. Kategori memakai pilihan formulir atau kategori pertama,
+      // dan dompet tujuan hanya dikirim untuk transaksi transfer.
+      const newTxn = {
+        ...form,
+        category: form.category || defaultCat,
+        amount: parseInt(String(form.amount).replace(/\D/g, ''), 10) || 0,
+      };
 
-    track('Transactions:addTransaction', { type: newTxn.type, amount: newTxn.amount, status: newTxn.status });
+      track('Transactions:addTransaction', { type: newTxn.type, amount: newTxn.amount });
 
-    await postTransaction(newTxn);
-    refetch();
-    showToast('Transaksi berhasil disimpan');
-    setShowForm(false);
-    setForm(emptyForm);
-    setDupWarning(null);
-    setForceSave(false);
-    setSubmitting(false);
+      await postTransaction(newTxn);
+      refetch();
+      showToast('Transaksi berhasil disimpan');
+      setShowForm(false);
+      setForm(buatFormAwal(members, accounts));
+      setDupWarning(null);
+      setForceSave(false);
+    } catch (err) {
+      showToast(err.message ?? 'Transaksi gagal disimpan', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCloseForm = () => {
     setShowForm(false);
-    setForm(emptyForm);
+    setForm(buatFormAwal(members, accounts));
     setDupWarning(null);
     setForceSave(false);
   };
@@ -130,7 +152,7 @@ export default function Transactions() {
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Keuangan</p>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Transaksi</h1>
         </div>
-        <Button onClick={() => { track('Transactions:openForm'); setShowForm(true); }}>
+        <Button onClick={() => { track('Transactions:openForm'); setForm(buatFormAwal(members, accounts)); setShowForm(true); }}>
           + Tambah Transaksi
         </Button>
       </div>
@@ -277,48 +299,46 @@ export default function Transactions() {
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Kategori</label>
-                <select value={form.category || defaultCat} onChange={e => updateForm({ category: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none bg-white">
-                  {categories.map(c => <option key={c.name} value={c.name}>{c.icon} {c.name}</option>)}
-                </select>
-              </div>
+              {/* Kategori hanya dipakai pengeluaran dan pemasukan */}
+              {form.type !== 'transfer' && (
+                <div>
+                  <label className="text-xs font-medium text-slate-600 mb-1.5 block">Kategori</label>
+                  <select value={form.category || defaultCat} onChange={e => updateForm({ category: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none bg-white">
+                    {categories.map(c => <option key={c.name} value={c.name}>{c.icon} {c.name}</option>)}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-medium text-slate-600 mb-1.5 block">Merchant / Toko</label>
                 <input type="text" value={form.merchant}
                   onChange={e => updateForm({ merchant: e.target.value })}
-                  placeholder="cth: Indomaret, Grab, PLN..." required
+                  placeholder={form.type === 'transfer' ? 'cth: Pindah dana ke tabungan' : 'cth: Indomaret, Grab, PLN...'}
+                  required={form.type !== 'transfer'}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none focus:border-slate-400 transition-colors" />
               </div>
 
               <div>
-                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Rekening</label>
+                <label className="text-xs font-medium text-slate-600 mb-1.5 block">
+                  {form.type === 'transfer' ? 'Dari Rekening' : 'Rekening'}
+                </label>
                 <select value={form.account} onChange={e => updateForm({ account: e.target.value })}
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none bg-white">
                   {accounts.map(a => <option key={a}>{a}</option>)}
                 </select>
               </div>
 
-              {/* Status */}
-              <div>
-                <label className="text-xs font-medium text-slate-600 mb-1.5 block">Status</label>
-                <div className="flex gap-2">
-                  {Object.entries(statusConfig).map(([key, cfg]) => (
-                    <button type="button" key={key}
-                      onClick={() => updateForm({ status: key })}
-                      className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all border"
-                      style={{
-                        backgroundColor: form.status === key ? cfg.bg : 'transparent',
-                        color: form.status === key ? cfg.color : '#94A3B8',
-                        borderColor: form.status === key ? cfg.bg : '#E2E8F0',
-                      }}>
-                      {cfg.label}
-                    </button>
-                  ))}
+              {/* Dompet tujuan hanya muncul untuk transaksi transfer */}
+              {form.type === 'transfer' && (
+                <div>
+                  <label className="text-xs font-medium text-slate-600 mb-1.5 block">Ke Rekening</label>
+                  <select value={form.toAccount} onChange={e => updateForm({ toAccount: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm outline-none bg-white">
+                    {accounts.map(a => <option key={a}>{a}</option>)}
+                  </select>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="text-xs font-medium text-slate-600 mb-1.5 block">Catatan (opsional)</label>

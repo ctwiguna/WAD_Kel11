@@ -1,9 +1,9 @@
-// Alur data: Budget → getBudgets + getTransactions → localStorage → tampilan
+// Alur data: Budget → getBudgets, getTransactions, dan getCategories → backend lewat getData.js.
+// Tambah dan ubah batas anggaran memakai putBudget supaya tersimpan di backend.
 
 import { useState } from 'react';
 import { useFetch } from '../hooks/useFetch';
 import { getBudgets, getTransactions, putBudget, getCategories } from '../API/getData';
-import { save, load } from '../utils/localStorage';
 import { track } from '../utils/analytics';
 import { useToast } from '../context/ToastContext';
 import { formatRupiah } from '../data/mockData';
@@ -62,18 +62,23 @@ export default function Budget() {
   const totalSpent = bdgsWithSpent.reduce((s, b) => s + b.spent, 0);
   const totalPct   = totalLimit > 0 ? Math.round((totalSpent / totalLimit) * 100) : 0;
 
-  const handleAddBudget = () => {
-    const limit = parseInt(addForm.limit.replace(/\D/g, ''), 10);
-    const cat   = allCats.find(c => c.name === addForm.category) ?? { icon: '📦', color: '#94A3B8' };
+  const handleAddBudget = async () => {
+    const limit = parseInt(String(addForm.limit).replace(/\D/g, ''), 10);
     if (!addForm.category || !limit || limit <= 0) return;
     track('Budget:addBudget', { category: addForm.category, limit });
-    const current = load('kf_budgets', []);
-    const newBudget = { category: addForm.category, icon: cat.icon, color: cat.color, limit, spent: 0 };
-    save('kf_budgets', [...current, newBudget]);
-    refetchBdg();
-    showToast(`Anggaran ${addForm.category} berhasil ditambahkan`);
-    setShowAddForm(false);
-    setAddForm({ category: '', limit: '' });
+    setSaving(true);
+    try {
+      // putBudget menyimpan ke backend, dan membuat anggaran baru bila belum ada
+      await putBudget(addForm.category, limit, period);
+      refetchBdg();
+      showToast(`Anggaran ${addForm.category} berhasil ditambahkan`);
+      setShowAddForm(false);
+      setAddForm({ category: '', limit: '' });
+    } catch (err) {
+      showToast(err.message ?? 'Anggaran gagal disimpan', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSaveLimit = async () => {
@@ -81,7 +86,7 @@ export default function Budget() {
     if (!limit || limit <= 0) return;
     setSaving(true);
     track('Budget:updateLimit', { category: editingCategory, limit });
-    await putBudget(editingCategory, limit);
+    await putBudget(editingCategory, limit, period);
     refetchBdg();
     showToast(`Anggaran ${editingCategory} diperbarui`);
     setEditingCategory(null);
