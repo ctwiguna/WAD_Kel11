@@ -3,13 +3,12 @@
 // lagi di halaman karena backend sudah mengirimnya.
 
 import { useFetch } from '../hooks/useFetch';
-import { getDashboardSummary, getTransactions, getBudgets, getMembers } from '../API/getData';
+import { getDashboardSummary, getTransactions, getBudgets, getMembers, getReportsMembers } from '../API/getData';
 import { track } from '../utils/analytics';
 import Card from '../components/Card';
 import { formatRupiah, formatDate } from '../data/mockData';
 
 const roleAvatar = { ayah: '👨', ibu: '👩', anak: '🧒' };
-const roleLabel = { ayah: 'Ayah', ibu: 'Ibu', anak: 'Anak' };
 const memberColors = ['#3B82F6', '#EC4899', '#8B5CF6', '#F59E0B', '#10B981'];
 
 // Nama bulan dari kunci periode backend, contoh 2026-10 menjadi Oktober 2026.
@@ -40,6 +39,8 @@ export default function Dashboard({ user }) {
   const { data: budgets, loading: loadBudget } = useFetch(getBudgets);
   const { data: summary, loading: loadSummary, error: errSummary } = useFetch(getDashboardSummary);
   const { data: members } = useFetch(getMembers);
+  // pengeluaran per anggota sudah dijumlahkan backend pada rentang bulan berjalan
+  const { data: memberReports } = useFetch(getReportsMembers);
 
   track('Dashboard:render');
 
@@ -90,32 +91,28 @@ export default function Dashboard({ user }) {
 
   // notifikasi anggaran: status dan persentase sudah dihitung backend
   const budgetAlerts = bdgs
-    .filter(b => Number(b.usagePercent) >= 80 || b.status === 'melebihi')
-    .sort((a, b) => Number(b.usagePercent) - Number(a.usagePercent));
+    .filter(b => Number(b.usagePercent) >= 80 || b.status === 'lewat batas')
+    .sort((a, b) => Number(a.usagePercent) - Number(b.usagePercent));
 
   // ikon kategori diambil dari data anggaran yang sudah memuat ikon kategori
   const iconKategori = {};
   bdgs.forEach(b => { iconKategori[b.category] = b.icon; });
 
-  // pengeluaran per anggota dari daftar transaksi, nama diambil dari daftar anggota
+  // pengeluaran per anggota sudah dijumlahkan backend lewat getReportsMembers,
+  // nama dan peran anggota diambil dari daftar anggota untuk tampilan
   const anggotaList = members ?? [];
   const namaAnggota = {};
   anggotaList.forEach(m => { namaAnggota[m.name] = m; });
 
-  const perAnggota = {};
-  activeTxns.filter(t => t.type === 'expense').forEach(t => {
-    const kunci = t.member ?? 'Anggota';
-    perAnggota[kunci] = (perAnggota[kunci] ?? 0) + Number(t.amount ?? 0);
-  });
-  const anggotaTeratas = Object.entries(perAnggota)
-    .sort((a, b) => b[1] - a[1])
+  const anggotaTeratas = (memberReports ?? [])
+    .filter(r => Number(r.exp) > 0)
+    .sort((a, b) => Number(b.exp) - Number(a.exp))
     .slice(0, 3)
-    .map(([nama, jumlah], i) => ({
-      // role dari adapter sudah berupa label, contoh Ayah, Ibu, atau Anak
-      nama: namaAnggota[nama]?.role ?? nama,
-      jumlah,
+    .map((r, i) => ({
+      nama: namaAnggota[r.name]?.role ?? r.name,
+      jumlah: Number(r.exp) || 0,
       warna: memberColors[i % memberColors.length],
-      avatar: roleAvatar[namaAnggota[nama]?.roleRaw] ?? '👤',
+      avatar: roleAvatar[namaAnggota[r.name]?.roleRaw] ?? '👤',
     }));
 
   return (
@@ -132,7 +129,7 @@ export default function Dashboard({ user }) {
       {budgetAlerts.length > 0 && (
         <div className="space-y-2">
           {budgetAlerts.map(b => {
-            const isOver = Number(b.usagePercent) >= 100 || b.status === 'melebihi';
+            const isOver = Number(b.usagePercent) >= 100 || b.status === 'lewat batas';
             return (
               <div key={b.category}
                 className="flex items-center gap-3 px-4 py-3 rounded-xl border"
