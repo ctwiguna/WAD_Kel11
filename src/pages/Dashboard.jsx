@@ -1,16 +1,25 @@
-// Alur data: Dashboard (luar fetch) → getTransactions/getBudgets → localStorage → tampilan
+// Alur data: Dashboard → getDashboardSummary untuk angka ringkasan, lalu getTransactions,
+// getBudgets, dan getMembers untuk daftar yang ditampilkan. Angka ringkasan tidak dihitung
+// lagi di halaman karena backend sudah mengirimnya.
 
 import { useFetch } from '../hooks/useFetch';
-import { getTransactions, getBudgets } from '../API/getData';
+import { getDashboardSummary, getTransactions, getBudgets, getMembers } from '../API/getData';
 import { track } from '../utils/analytics';
-import Card from '../components/Card'; 
+import Card from '../components/Card';
 import { formatRupiah, formatDate } from '../data/mockData';
 
-const categoryIconMap = {
-  'Makanan & Minuman': '🍽️', 'Transportasi': '🚗', 'Pendidikan': '📚',
-  'Tagihan & Utilitas': '💡', 'Kesehatan': '💊', 'Belanja': '🛍️',
-  'Hiburan': '🎬', 'Lainnya': '📦',
-};
+const roleAvatar = { ayah: '👨', ibu: '👩', anak: '🧒' };
+const roleLabel = { ayah: 'Ayah', ibu: 'Ibu', anak: 'Anak' };
+const memberColors = ['#3B82F6', '#EC4899', '#8B5CF6', '#F59E0B', '#10B981'];
+
+// Nama bulan dari kunci periode backend, contoh 2026-10 menjadi Oktober 2026.
+function labelBulan(periode) {
+  if (!periode) return '';
+  const bagian = String(periode).slice(0, 7).split('-');
+  const tanggal = new Date(Number(bagian[0]), Number(bagian[1]) - 1, 1);
+  if (Number.isNaN(tanggal.getTime())) return String(periode);
+  return tanggal.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+}
 
 function StatCard({ label, amount, sub, color }) {
   return (
@@ -29,11 +38,13 @@ export default function Dashboard({ user }) {
   // useFetch → isi alur deps/refetch
   const { data: transactions, loading: loadTxn, error: errTxn } = useFetch(getTransactions);
   const { data: budgets, loading: loadBudget } = useFetch(getBudgets);
+  const { data: summary, loading: loadSummary, error: errSummary } = useFetch(getDashboardSummary);
+  const { data: members } = useFetch(getMembers);
 
   track('Dashboard:render');
 
   // Loading state, ternary
-  if (loadTxn || loadBudget) {
+  if (loadTxn || loadBudget || loadSummary) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -45,7 +56,7 @@ export default function Dashboard({ user }) {
   }
 
   // Error state, ternary
-  if (errTxn) {
+  if (errTxn || errSummary) {
     return (
       <Card>
         <p className="text-red-500 text-sm">⚠️ Gagal memuat data: {errTxn}</p>
@@ -56,41 +67,56 @@ export default function Dashboard({ user }) {
   const txns = transactions ?? [];
   const bdgs = budgets ?? [];
 
-  // transaksi dibatalkan tidak dihitung
+  // transaksi dibatalkan tidak ikut ditampilkan di daftar
   const activeTxns = txns.filter(t => t.status !== 'dibatalkan');
 
-  const totalIncome  = activeTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalExpense = activeTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-  const netFlow      = totalIncome - totalExpense;
+  // angka ringkasan dipakai apa adanya dari backend, tidak dihitung ulang di sini
+  const totalIncome  = summary?.totalIncome ?? 0;
+  const totalExpense = summary?.totalExpense ?? 0;
+  const netFlow      = summary?.netFlow ?? 0;
+  const bulanIni     = labelBulan(summary?.period) || new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 
-  // hitung spent per kategori dari transaksi nyata
-  const spentMap = {};
-  activeTxns.filter(t => t.type === 'expense').forEach(t => {
-    spentMap[t.category] = (spentMap[t.category] ?? 0) + t.amount;
-  });
-
-  // map → kategori teratas
+  // kategori teratas memakai spent dari backend, bukan hitungan transaksi di frontend
   const categoryTotals = bdgs
-    .map(b => ({ ...b, spent: spentMap[b.category] ?? 0 }))
-    .map(b => ({ ...b, pct: b.limit > 0 ? Math.round((b.spent / b.limit) * 100) : 0 }))
-    .sort((a, b) => b.spent - a.spent)
+    .filter(b => Number(b.spent) > 0)
+    .sort((a, b) => Number(b.spent) - Number(a.spent))
     .slice(0, 4);
 
   // map → transaksi terbaru
-  const recentTxns = [...txns]
+  const recentTxns = [...activeTxns]
     .filter(t => t.type !== 'transfer')
-    .sort((a, b) => b.date.localeCompare(a.date))
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
     .slice(0, 6);
 
-  // notifikasi anggaran: lewat (>=100%) atau mendekati (>=80%)
+  // notifikasi anggaran: status dan persentase sudah dihitung backend
   const budgetAlerts = bdgs
-    .map(b => ({ ...b, spent: spentMap[b.category] ?? 0 }))
-    .map(b => ({ ...b, pct: b.limit > 0 ? Math.round((b.spent / b.limit) * 100) : 0 }))
-    .filter(b => b.pct >= 80)
-    .sort((a, b) => b.pct - a.pct);
+    .filter(b => Number(b.usagePercent) >= 80 || b.status === 'melebihi')
+    .sort((a, b) => Number(b.usagePercent) - Number(a.usagePercent));
 
-  const now = new Date();
-  const bulanIni = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  // ikon kategori diambil dari data anggaran yang sudah memuat ikon kategori
+  const iconKategori = {};
+  bdgs.forEach(b => { iconKategori[b.category] = b.icon; });
+
+  // pengeluaran per anggota dari daftar transaksi, nama diambil dari daftar anggota
+  const anggotaList = members ?? [];
+  const namaAnggota = {};
+  anggotaList.forEach(m => { namaAnggota[m.name] = m; });
+
+  const perAnggota = {};
+  activeTxns.filter(t => t.type === 'expense').forEach(t => {
+    const kunci = t.member ?? 'Anggota';
+    perAnggota[kunci] = (perAnggota[kunci] ?? 0) + Number(t.amount ?? 0);
+  });
+  const anggotaTeratas = Object.entries(perAnggota)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([nama, jumlah], i) => ({
+      // role dari adapter sudah berupa label, contoh Ayah, Ibu, atau Anak
+      nama: namaAnggota[nama]?.role ?? nama,
+      jumlah,
+      warna: memberColors[i % memberColors.length],
+      avatar: roleAvatar[namaAnggota[nama]?.roleRaw] ?? '👤',
+    }));
 
   return (
     <div className="space-y-8">
@@ -98,7 +124,7 @@ export default function Dashboard({ user }) {
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">{bulanIni}</p>
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Ringkasan Bulan Ini</h1>
         <p className="text-xs text-slate-400 mt-1">
-          Halo, {user?.name ?? 'Budi Santoso'}{user?.household ? ` dari ${user.household}` : ''}
+          Halo, {user?.name ?? 'Pengguna'}{user?.household ? ` dari ${user.household}` : ''}
         </p>
       </div>
 
@@ -106,7 +132,7 @@ export default function Dashboard({ user }) {
       {budgetAlerts.length > 0 && (
         <div className="space-y-2">
           {budgetAlerts.map(b => {
-            const isOver = b.pct >= 100;
+            const isOver = Number(b.usagePercent) >= 100 || b.status === 'melebihi';
             return (
               <div key={b.category}
                 className="flex items-center gap-3 px-4 py-3 rounded-xl border"
@@ -120,7 +146,7 @@ export default function Dashboard({ user }) {
                     {isOver ? 'Anggaran terlampaui' : 'Anggaran hampir habis'}: {b.category}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: isOver ? '#B91C1C' : '#B45309' }}>
-                    {formatRupiah(b.spent)} dari {formatRupiah(b.limit)} ({b.pct}%)
+                    {formatRupiah(b.spent)} dari {formatRupiah(b.limit)} ({b.usagePercent}%)
                   </p>
                 </div>
                 <span className="text-xs font-bold px-2 py-1 rounded-lg shrink-0"
@@ -128,7 +154,7 @@ export default function Dashboard({ user }) {
                     backgroundColor: isOver ? '#FEE2E2' : '#FEF3C7',
                     color:           isOver ? '#991B1B' : '#92400E',
                   }}>
-                  {b.pct}%
+                  {b.usagePercent}%
                 </span>
               </div>
             );
@@ -138,8 +164,8 @@ export default function Dashboard({ user }) {
 
       {/* StatCards, props */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total Pemasukan" amount={totalIncome}  sub="Bulan Januari" color="#10B981" />
-        <StatCard label="Total Pengeluaran" amount={totalExpense} sub="Bulan Januari" color="#EF4444" />
+        <StatCard label="Total Pemasukan" amount={totalIncome}  sub={bulanIni} color="#10B981" />
+        <StatCard label="Total Pengeluaran" amount={totalExpense} sub={bulanIni} color="#EF4444" />
         <StatCard
           label="Arus Kas Bersih"
           amount={netFlow}
@@ -170,13 +196,13 @@ export default function Dashboard({ user }) {
                     <div
                       className="h-full rounded-full"
                       style={{
-                        width: `${Math.min(cat.pct, 100)}%`,
+                        width: `${Math.min(Number(cat.usagePercent) || 0, 100)}%`,
                         // ternary → warna bar berdasarkan status
-                        backgroundColor: cat.pct >= 90 ? '#EF4444' : cat.pct >= 75 ? '#F59E0B' : cat.color,
+                        backgroundColor: Number(cat.usagePercent) >= 90 ? '#EF4444' : Number(cat.usagePercent) >= 75 ? '#F59E0B' : cat.color,
                       }}
                     />
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">{cat.pct}% dari {formatRupiah(cat.limit)}</p>
+                  <p className="text-xs text-slate-400 mt-1">{Number(cat.usagePercent) || 0}% dari {formatRupiah(cat.limit)}</p>
                 </div>
               ))}
             </div>
@@ -199,7 +225,7 @@ export default function Dashboard({ user }) {
                     className="w-9 h-9 rounded-xl flex items-center justify-center text-base shrink-0"
                     style={{ backgroundColor: txn.type === 'income' ? '#D1FAE5' : '#FEF2F2' }}
                   >
-                    {txn.type === 'income' ? '💰' : (categoryIconMap[txn.category] ?? '📦')}
+                    {txn.type === 'income' ? '💰' : (iconKategori[txn.category] ?? '📦')}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900 truncate">{txn.merchant}</p>
@@ -218,27 +244,22 @@ export default function Dashboard({ user }) {
       {/* Pengeluaran per anggota, map */}
       <Card>
         <h2 className="font-bold text-slate-900 mb-5">Pengeluaran per Anggota</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {[
-            { name: 'Ayah', avatar: '👨', color: '#3B82F6' },
-            { name: 'Ibu',  avatar: '👩', color: '#EC4899' },
-            { name: 'Anak', avatar: '🧒', color: '#8B5CF6' },
-          ].map(({ name, avatar, color }) => {
-            const spent = txns
-              .filter(t => t.member === name && t.type === 'expense' && t.status !== 'dibatalkan')
-              .reduce((s, t) => s + t.amount, 0);
-            return (
-              <div key={name} className="flex items-center gap-4">
+        {anggotaTeratas.length === 0 ? (
+          <p className="text-sm text-slate-400">Belum ada pengeluaran anggota bulan ini.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {anggotaTeratas.map(({ nama, avatar, warna, jumlah }) => (
+              <div key={nama} className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-slate-50 shrink-0">{avatar}</div>
                 <div>
-                  <p className="font-semibold text-slate-900">{name}</p>
-                  <p className="text-sm font-bold" style={{ color }}>{formatRupiah(spent)}</p>
+                  <p className="font-semibold text-slate-900">{nama}</p>
+                  <p className="text-sm font-bold" style={{ color: warna }}>{formatRupiah(jumlah)}</p>
                   <p className="text-xs text-slate-400">Pengeluaran bulan ini</p>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );
