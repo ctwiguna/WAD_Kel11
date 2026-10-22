@@ -1,23 +1,15 @@
-// Alur data: Budget → getBudgets, getTransactions, dan getCategories → backend lewat getData.js.
+// Alur data: Budget → getBudgets dan getCategories → backend lewat getData.js.
+// Pemakaian, sisa, persentase, dan status tiap anggaran sudah dihitung backend.
 // Tambah dan ubah batas anggaran memakai putBudget supaya tersimpan di backend.
 
 import { useState } from 'react';
 import { useFetch } from '../hooks/useFetch';
-import { getBudgets, getTransactions, putBudget, getCategories } from '../API/getData';
+import { getBudgets, putBudget, getCategories } from '../API/getData';
 import { track } from '../utils/analytics';
 import { useToast } from '../context/ToastContext';
 import { formatRupiah } from '../data/mockData';
 import Card from '../components/Card';
 import Button from '../components/Button';
-
-// hitung spent per kategori dari transaksi nyata
-function hitungSpentPerKategori(txns) {
-  const map = {};
-  txns.filter(t => t.type === 'expense' && t.status !== 'dibatalkan').forEach(t => {
-    map[t.category] = (map[t.category] ?? 0) + t.amount;
-  });
-  return map;
-}
 
 export default function Budget() {
   const { showToast } = useToast();
@@ -31,13 +23,11 @@ export default function Budget() {
   const [period, setPeriod] = useState(() => new Date().toISOString().slice(0, 7));
 
   const { data: budgets,      loading: loadBdg, refetch: refetchBdg } = useFetch(getBudgets);
-  // deps → hook dijalankan ulang setiap bulan berganti, refetch() untuk memuat ulang manual
-  const { data: transactions, loading: loadTxn }                       = useFetch(getTransactions, [period]);
-  const { data: categoriesData }                                        = useFetch(getCategories);
+  const { data: categoriesData }                                      = useFetch(getCategories);
 
   track('Budget:render');
 
-  if (loadBdg || loadTxn) {
+  if (loadBdg) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
@@ -45,21 +35,18 @@ export default function Budget() {
     );
   }
 
-  const bdgs = budgets      ?? [];
-  const txns = transactions ?? [];
   const allCats = (categoriesData ?? []).filter(c => !c.archived);
 
-  // kategori yang belum punya anggaran
+  // getBudgets mengembalikan anggaran semua bulan, jadi disaring dulu sesuai pemilih bulan.
+  // Nilai spent, remaining, usagePercent, dan status dipakai apa adanya dari backend.
+  const bdgs = (budgets ?? []).filter(b => b.period === period);
+
+  // kategori yang belum punya anggaran pada bulan yang dipilih
   const usedCategories = new Set(bdgs.map(b => b.category));
   const availableCats  = allCats.filter(c => !usedCategories.has(c.name));
 
-  // transaksi disaring untuk bulan yang dipilih, lalu spent dihitung dari transaksi itu
-  const txnsBulanIni  = txns.filter(t => t.date.startsWith(period));
-  const spentMap      = hitungSpentPerKategori(txnsBulanIni);
-  const bdgsWithSpent = bdgs.map(b => ({ ...b, spent: spentMap[b.category] ?? 0 }));
-
-  const totalLimit = bdgsWithSpent.reduce((s, b) => s + b.limit, 0);
-  const totalSpent = bdgsWithSpent.reduce((s, b) => s + b.spent, 0);
+  const totalLimit = bdgs.reduce((s, b) => s + Number(b.limit ?? 0), 0);
+  const totalSpent = bdgs.reduce((s, b) => s + Number(b.spent ?? 0), 0);
   const totalPct   = totalLimit > 0 ? Math.round((totalSpent / totalLimit) * 100) : 0;
 
   const handleAddBudget = async () => {
@@ -86,12 +73,17 @@ export default function Budget() {
     if (!limit || limit <= 0) return;
     setSaving(true);
     track('Budget:updateLimit', { category: editingCategory, limit });
-    await putBudget(editingCategory, limit, period);
-    refetchBdg();
-    showToast(`Anggaran ${editingCategory} diperbarui`);
-    setEditingCategory(null);
-    setNewLimit('');
-    setSaving(false);
+    try {
+      await putBudget(editingCategory, limit, period);
+      refetchBdg();
+      showToast(`Anggaran ${editingCategory} diperbarui`);
+      setEditingCategory(null);
+      setNewLimit('');
+    } catch (err) {
+      showToast(err.message ?? 'Anggaran gagal diperbarui', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -140,12 +132,13 @@ export default function Budget() {
 
       {/* Daftar kategori */}
       <div className="space-y-3">
-        {bdgsWithSpent.map(b => {
-          const pct      = b.limit > 0 ? Math.round((b.spent / b.limit) * 100) : 0;
-          const isOver   = pct >= 100;
-          const isWarn   = pct >= 80;
+        {bdgs.map(b => {
+          // nilai turunan dipakai apa adanya dari backend: usagePercent, status, dan remaining
+          const pct      = Number(b.usagePercent ?? 0);
+          const isOver   = b.status === 'lewat batas' || pct >= 100;
+          const isWarn   = b.status === 'perhatian' || pct >= 80;
           const barColor = isOver ? '#EF4444' : isWarn ? '#F59E0B' : b.color;
-          const sisa     = Math.max(b.limit - b.spent, 0);
+          const sisa     = Number(b.remaining ?? Math.max(Number(b.limit ?? 0) - Number(b.spent ?? 0), 0));
 
           return (
             <Card key={b.category} padding="p-5">
@@ -221,8 +214,8 @@ export default function Budget() {
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" fullWidth onClick={() => setShowAddForm(false)}>Batal</Button>
                 <Button fullWidth onClick={handleAddBudget}
-                  disabled={!addForm.category || !addForm.limit}>
-                  Simpan
+                  disabled={saving || !addForm.category || !addForm.limit}>
+                  {saving ? 'Menyimpan...' : 'Simpan'}
                 </Button>
               </div>
             </div>
