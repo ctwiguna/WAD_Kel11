@@ -15,6 +15,8 @@ import {
   getMembers,
   getCategories,
   getAccounts,
+  putBudget,
+  postGoal,
 } from './API/getData';
 import QAPanel from './components/QAPanel';
 import AuthPage from './pages/AuthPage';
@@ -222,9 +224,17 @@ export default function App() {
     window.location.assign('/');
   };
 
-  // Onboarding masih menyimpan isiannya ke localStorage. Rumah tangga di backend dibuat
-  // di sini bila belum ada, lalu datanya dimuat supaya sesi lengkap.
-  const handleOnboardingDone = async ({ household }) => {
+  // Onboarding mengirim payload lengkap: household (string), members, budgets, goals.
+  // Rumah tangga dibuat di sini bila belum ada. Baris anggota pemilik dibuat otomatis
+  // oleh trigger basis data trg_tambah_pemilik_sebagai_ayah. Anggota lain tanpa akun
+  // menunggu alur undangan, lalu anggaran dan tujuan awal dibuat lewat getData.
+  const handleOnboardingDone = async (payload) => {
+    const data = payload && typeof payload === 'object' && !Array.isArray(payload)
+      ? payload
+      : { household: payload };
+    const household = typeof data.household === 'object' && data.household !== null
+      ? (data.household.name ?? '')
+      : (data.household ?? '');
     if (savingRef.current) return;
     savingRef.current = true;
     setSavingHousehold(true);
@@ -234,6 +244,16 @@ export default function App() {
       if (!infoSesi().householdId) await postHousehold({ name: household.trim() });
       const saved = await loadHousehold();
       if (!saved) throw new Error('Rumah tangga belum terbaca dari server, silakan coba lagi.');
+      const tanpaAkun = (Array.isArray(data.members) ? data.members : []).filter((m) => !m.userId);
+      if (tanpaAkun.length) {
+        console.info('[onboarding] ' + tanpaAkun.length + ' anggota menunggu alur undangan sebelum dibuat di backend.');
+      }
+      for (const b of Array.isArray(data.budgets) ? data.budgets : []) {
+        if (b.category && Number(b.limit) > 0) await putBudget(b.category, Number(b.limit));
+      }
+      for (const g of Array.isArray(data.goals) ? data.goals : []) {
+        if (g.name && Number(g.target) > 0) await postGoal({ name: g.name, target: Number(g.target), deadline: null, status: 'active' });
+      }
       setUser(buildUser());
       setOnboarded(true);
     } catch (err) {
