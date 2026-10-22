@@ -17,6 +17,7 @@ import {
   getAccounts,
   putBudget,
   postGoal,
+  postCategory,
 } from './API/getData';
 import QAPanel from './components/QAPanel';
 import AuthPage from './pages/AuthPage';
@@ -249,7 +250,13 @@ export default function App() {
         console.info('[onboarding] ' + tanpaAkun.length + ' anggota menunggu alur undangan sebelum dibuat di backend.');
       }
       for (const b of Array.isArray(data.budgets) ? data.budgets : []) {
-        if (b.category && Number(b.limit) > 0) await putBudget(b.category, Number(b.limit));
+        if (b.category && Number(b.limit) > 0) {
+          const ada = new Set((await getCategories()).map((c) => c.name.toLowerCase()));
+          if (!ada.has(String(b.category).toLowerCase())) {
+            await postCategory({ name: String(b.category).trim(), kind: 'expense' });
+          }
+          await putBudget(b.category, Number(b.limit));
+        }
       }
       for (const g of Array.isArray(data.goals) ? data.goals : []) {
         if (g.name && Number(g.target) > 0) await postGoal({ name: g.name, target: Number(g.target), deadline: null, status: 'active' });
