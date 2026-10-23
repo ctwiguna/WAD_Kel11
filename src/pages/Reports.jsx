@@ -1,20 +1,16 @@
-// Alur data: Reports (luar fetch) → getTransactions → localStorage → tampilan
-
-import { useState } from 'react';
-import { useFetch } from '../hooks/useFetch';
-import { getTransactions } from '../API/getData';
-import { track } from '../utils/analytics';
-import { formatRupiah, categories as allCategories } from '../data/mockData';
+import { useState, useEffect } from 'react';
 import Card from '../components/Card';
-
-// lookup icon & color dari categories mockData
-const categoryMeta = Object.fromEntries(
-  allCategories.map(c => [c.name, { icon: c.icon, color: c.color }])
-);
+import { track } from '../utils/analytics';
+import { formatRupiah } from '../data/mockData';
+import {
+  getReportsCashflow,
+  getReportsCategories,
+  getReportsMembers,
+  exportReportsCsv,
+} from '../services/reports';
 
 const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
-// Komponen bar chart tren bulanan
 function Bar({ label, income, expense, maxVal, isCurrentMonth }) {
   const incPct = maxVal > 0 ? (income / maxVal) * 100 : 0;
   const expPct = maxVal > 0 ? (expense / maxVal) * 100 : 0;
@@ -33,10 +29,48 @@ function Bar({ label, income, expense, maxVal, isCurrentMonth }) {
 
 export default function Reports() {
   const [period, setPeriod] = useState('all');
-
-  const { data: transactions, loading, error } = useFetch(getTransactions);
+  const [cashflow, setCashflow] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   track('Reports:render');
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    setError(null);
+
+    Promise.all([
+      getReportsCashflow(period),
+      getReportsCategories(period),
+      getReportsMembers(period)
+    ])
+      .then(([cashflowData, categoriesData, membersData]) => {
+        if (!isMounted) return;
+        setCashflow(cashflowData);
+        setCategories(categoriesData || []);
+        setMembers(membersData || []);
+      })
+      .catch((err) => {
+        if (isMounted) setError(err.message || 'Gagal memuat laporan dari backend.');
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => { isMounted = false; };
+  }, [period]);
+
+  const handleExportCSV = async () => {
+    try {
+      track('Reports:exportCSV', { period });
+      await exportReportsCsv(period);
+    } catch (err) {
+      alert('Gagal mengekspor CSV: ' + (err.message || err));
+    }
+  };
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -46,68 +80,13 @@ export default function Reports() {
 
   if (error) return <Card><p className="text-red-500 text-sm">⚠️ {error}</p></Card>;
 
-  const allTxns = transactions ?? [];
+  const totalIncome  = cashflow?.total_income ?? cashflow?.income ?? 0;
+  const totalExpense = cashflow?.total_expense ?? cashflow?.expense ?? 0;
+  const totalSaving  = cashflow?.total_saving ?? cashflow?.saving ?? (totalIncome - totalExpense);
+  const savingsRate  = cashflow?.savings_rate ?? (totalIncome > 0 ? Math.round((totalSaving / totalIncome) * 100) : 0);
 
-  // filter transaksi sesuai period yang dipilih
-  const txns = period === 'all'
-    ? allTxns
-    : allTxns.filter(t => t.date.startsWith(period));
-
-  // transaksi dibatalkan tidak dihitung dalam kalkulasi apapun
-  const activeTxns = txns.filter(t => t.status !== 'dibatalkan');
-
-  // ── KPI ────────────────────────────────────────────────────
-  const totalIncome  = activeTxns.filter(t => t.type === 'income').reduce((s, t)  => s + t.amount, 0);
-  const totalExpense = activeTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-  const totalSaving  = totalIncome - totalExpense;
-  const savingsRate  = totalIncome > 0 ? Math.round((totalSaving / totalIncome) * 100) : 0;
-
-  // ── Komposisi per kategori ──────────────────────────────────
-  const categoryMap = {};
-  activeTxns.filter(t => t.type === 'expense').forEach(t => {
-    if (!categoryMap[t.category]) categoryMap[t.category] = 0;
-    categoryMap[t.category] += t.amount;
-  });
-  const byCategory = Object.entries(categoryMap)
-    .map(([category, spent]) => ({ category, spent, pct: totalExpense > 0 ? Math.round((spent / totalExpense) * 100) : 0 }))
-    .sort((a, b) => b.spent - a.spent);
-
-  // Grafik tren, dibangun dari data transaksi nyata per bulan
-  const monthlyMap = {};
-  allTxns.forEach(t => {
-    const m = t.date.slice(0, 7);
-    if (!monthlyMap[m]) monthlyMap[m] = { income: 0, expense: 0 };
-    if (t.status === 'dibatalkan') return;
-    if (t.type === 'income')  monthlyMap[m].income  += t.amount;
-    if (t.type === 'expense') monthlyMap[m].expense += t.amount;
-  });
-  const sortedMonths = Object.keys(monthlyMap).sort().slice(-6);
-  const chartData = sortedMonths.map((m, i) => {
-    const [y, mo] = m.split('-');
-    return {
-      label: months[parseInt(mo) - 1].slice(0, 3),
-      income:  monthlyMap[m].income,
-      expense: monthlyMap[m].expense,
-      isCurrent: i === sortedMonths.length - 1,
-    };
-  });
-  const maxVal = Math.max(...chartData.map(d => Math.max(d.income, d.expense)));
-
-  // ── Ekspor CSV ─────────────────────────────────────────────
-  const handleExportCSV = () => {
-    track('Reports:exportCSV', { period, count: txns.length });
-    const header = 'Tanggal,Jenis,Jumlah,Kategori,Anggota,Merchant,Catatan,Rekening\n';
-    const rows = txns.map(t =>
-      `${t.date},${t.type},${t.amount},${t.category},${t.member},${t.merchant},"${t.notes ?? ''}",${t.account}`
-    ).join('\n');
-    const blob = new Blob([header + rows], { type: 'text/csv;charset=utf-8;' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `keluargafin_${period}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const chartData = cashflow?.chart_data ?? cashflow?.monthly ?? [];
+  const maxVal = Math.max(...chartData.map(d => Math.max(d.income || 0, d.expense || 0)), 1);
 
   return (
     <div className="space-y-6">
@@ -122,22 +101,17 @@ export default function Reports() {
         </button>
       </div>
 
-      {/* Period selector, dibuat dari transaksi yang ada */}
-      {(() => {
-        const uniqueMonths = [...new Set(allTxns.map(t => t.date.slice(0, 7)))].sort().reverse();
-        return (
-          <select value={period} onChange={e => setPeriod(e.target.value)}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white outline-none">
-            <option value="all">Semua Periode</option>
-            {uniqueMonths.map(p => {
-              const [y, m] = p.split('-');
-              return <option key={p} value={p}>{months[parseInt(m) - 1]} {y}</option>;
-            })}
-          </select>
-        );
-      })()}
+      <select value={period} onChange={e => setPeriod(e.target.value)}
+        className="px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-700 bg-white outline-none">
+        <option value="all">Semua Periode</option>
+        {cashflow?.available_periods?.map(p => {
+          const [y, m] = p.split('-');
+          return <option key={p} value={p}>{months[parseInt(m) - 1]} {y}</option>;
+        }) ?? (
+          <option value={new Date().toISOString().slice(0, 7)}>Bulan Ini</option>
+        )}
+      </select>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Pemasukan',   value: formatRupiah(totalIncome),  color: '#10B981' },
@@ -153,7 +127,6 @@ export default function Reports() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Bar chart tren */}
         <Card padding="p-6">
           <h2 className="font-bold text-slate-900 mb-2">Tren 6 Bulan Terakhir</h2>
           <div className="flex items-center gap-4 mb-4">
@@ -167,36 +140,44 @@ export default function Reports() {
             </div>
           </div>
           <div className="flex items-end gap-4 pb-2 overflow-x-auto">
-            {chartData.map((d) => (
-              <Bar key={d.label} label={d.label} income={d.income} expense={d.expense} maxVal={maxVal} isCurrentMonth={d.isCurrent} />
-            ))}
+            {chartData.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-8 w-full">Belum ada data tren.</p>
+            ) : (
+              chartData.map((d, i) => (
+                <Bar key={d.label || i} label={d.label} income={d.income} expense={d.expense} maxVal={maxVal} isCurrentMonth={d.isCurrent} />
+              ))
+            )}
           </div>
         </Card>
 
-        {/* Komposisi kategori, dari transaksi nyata */}
         <Card padding="p-6">
           <h2 className="font-bold text-slate-900 mb-5">Komposisi Pengeluaran</h2>
-          {byCategory.length === 0 ? (
+          {categories.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-8">Belum ada transaksi pengeluaran.</p>
           ) : (
             <div className="space-y-4">
-              {byCategory.slice(0, 6).map(cat => {
-                const meta = categoryMeta[cat.category] ?? { icon: '📦', color: '#94A3B8' };
+              {categories.slice(0, 6).map(cat => {
+                const categoryName = cat.category || cat.name;
+                const spent = cat.spent || cat.amount || 0;
+                const pct = cat.pct || cat.percentage || 0;
+                const icon = cat.icon || '📦';
+                const color = cat.color || '#94A3B8';
+
                 return (
-                  <div key={cat.category}>
+                  <div key={categoryName}>
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-base">{meta.icon}</span>
-                        <span className="text-sm font-medium text-slate-700">{cat.category}</span>
+                        <span className="text-base">{icon}</span>
+                        <span className="text-sm font-medium text-slate-700">{categoryName}</span>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-xs text-slate-400">{cat.pct}%</span>
-                        <span className="text-sm font-semibold text-slate-900">{formatRupiah(cat.spent)}</span>
+                        <span className="text-xs text-slate-400">{pct}%</span>
+                        <span className="text-sm font-semibold text-slate-900">{formatRupiah(spent)}</span>
                       </div>
                     </div>
                     <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div className="h-full rounded-full transition-all"
-                        style={{ width: `${cat.pct}%`, backgroundColor: meta.color }} />
+                        style={{ width: `${pct}%`, backgroundColor: color }} />
                     </div>
                   </div>
                 );
@@ -206,7 +187,6 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* Tabel per anggota, dari transaksi nyata */}
       <Card padding="p-6">
         <h2 className="font-bold text-slate-900 mb-5">Ringkasan per Anggota</h2>
         <div className="overflow-x-auto">
@@ -221,28 +201,33 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {[
-                { name: 'Ayah', avatar: '👨' },
-                { name: 'Ibu',  avatar: '👩' },
-                { name: 'Anak', avatar: '🧒' },
-              ].map(({ name, avatar }) => {
-                const inc   = txns.filter(t => t.member === name && t.type === 'income').reduce((s, t)  => s + t.amount, 0);
-                const exp   = activeTxns.filter(t => t.member === name && t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-                const count = txns.filter(t => t.member === name).length;
-                return (
-                  <tr key={name}>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{avatar}</span>
-                        <span className="font-medium text-slate-900">{name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 text-right font-semibold text-emerald-600">{inc > 0 ? formatRupiah(inc) : '-'}</td>
-                    <td className="py-3 text-right font-semibold text-red-500">{exp > 0 ? formatRupiah(exp) : '-'}</td>
-                    <td className="py-3 text-right text-slate-500">{count}</td>
-                  </tr>
-                );
-              })}
+              {members.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-4 text-center text-slate-400">Tidak ada data anggota.</td>
+                </tr>
+              ) : (
+                members.map((m) => {
+                  const name = m.name || m.member;
+                  const avatar = m.avatar || '👤';
+                  const inc = m.income ?? m.total_income ?? 0;
+                  const exp = m.expense ?? m.total_expense ?? 0;
+                  const count = m.count ?? m.transaction_count ?? 0;
+
+                  return (
+                    <tr key={name}>
+                      <td className="py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{avatar}</span>
+                          <span className="font-medium text-slate-900">{name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 text-right font-semibold text-emerald-600">{inc > 0 ? formatRupiah(inc) : '-'}</td>
+                      <td className="py-3 text-right font-semibold text-red-500">{exp > 0 ? formatRupiah(exp) : '-'}</td>
+                      <td className="py-3 text-right text-slate-500">{count}</td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

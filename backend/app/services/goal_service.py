@@ -1,42 +1,36 @@
+from typing import Optional
 from uuid import UUID
-from typing import Dict, Any, List, Optional
-from supabase import Client
+from pydantic import BaseModel, Field
 
-class GoalService:
-    def __init__(self, supabase: Client):
-        self.db = supabase
 
-    # --- GOALS CRUD ---
-    async def get_goals_by_household(self, household_id: UUID) -> List[Dict[str, Any]]:
-        response = self.db.table("goals").select("*").eq("household_id", str(household_id)).execute()
-        return response.data
+class GoalCreate(BaseModel):
+    household_id: UUID
+    name: str
+    target_amount: int = Field(..., gt=0)
+    deadline: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = "#10B981"  # Nilai bawaan warna sesuai tabel DB
+    status: Optional[str] = "active"
 
-    async def get_goal_by_id(self, goal_id: UUID) -> Optional[Dict[str, Any]]:
-        response = self.db.table("goals").select("*").eq("id", str(goal_id)).execute()
-        if response.data:
-            return response.data[0]
-        return None
 
-    async def create_goal(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        response = self.db.table("goals").insert(data).execute()
-        return response.data[0]
+class GoalUpdate(BaseModel):
+    name: Optional[str] = None
+    target_amount: Optional[int] = Field(None, gt=0)
+    deadline: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    status: Optional[str] = None
 
-    async def update_goal(self, goal_id: UUID, data: Dict[str, Any]) -> Dict[str, Any]:
-        response = self.db.table("goals").update(data).eq("id", str(goal_id)).execute()
-        return response.data[0]
 
-    async def delete_goal(self, goal_id: UUID) -> None:
-        self.db.table("goals").delete().eq("id", str(goal_id)).execute()
+class ContributionCreate(BaseModel):
+    goal_id: UUID
+    member_id: UUID
+    amount: int = Field(..., gt=0)
+    account_id: Optional[UUID] = None
+    transaction_id: Optional[UUID] = None
 
-    # --- GOAL CONTRIBUTIONS CRUD ---
-    async def get_contributions_by_goal(self, goal_id: UUID) -> List[Dict[str, Any]]:
-        response = self.db.table("goal_contributions").select("*").eq("goal_id", str(goal_id)).execute()
-        return response.data
 
-    async def create_contribution(self, goal_id: UUID, data: Dict[str, Any]) -> Dict[str, Any]:
-        payload = {"goal_id": str(goal_id), **data}
-        response = self.db.table("goal_contributions").insert(payload).execute()
-        return response.data[0]
-
-    async def delete_contribution(self, contribution_id: UUID) -> None:
-        self.db.table("goal_contributions").delete().eq("id", str(contribution_id)).execute()
+class ContributionUpdate(BaseModel):
+    amount: Optional[int] = Field(None, gt=0)
+    account_id: Optional[UUID] = None
+    transaction_id: Optional[UUID] = None
