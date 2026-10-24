@@ -9,7 +9,8 @@ export function track(event, data = {}) {
     data,
   };
   logs.push(entry);
-  console.log(`[Analytics] ${event}`, data);
+  // Log konsol hanya di mode dev, supaya data event tidak ikut tercetak di produksi.
+  if (import.meta.env.DEV) console.log(`[Analytics] ${event}`, data);
 }
 
 export function getLogs() {
