@@ -429,6 +429,24 @@ export async function putCategory(name, changes) {
   });
 }
 
+// Menghapus kategori memakai id, karena nama kategori bisa sama antar rumah tangga.
+// Backend menolak penghapusan kategori sistem, jadi pesan errornya diteruskan apa adanya.
+export async function deleteCategory(id) {
+  track('getData:deleteCategory', { id });
+  if (modeDemo()) {
+    const lama = load('kf_categories', mockCategories);
+    const baru = lama.filter((c) => c.id !== id);
+    save('kf_categories', baru);
+    return { id };
+  }
+  return jalankan(async () => {
+    await http.delete(`/categories/${id}`);
+    sesi.kategori = sesi.kategori.filter((c) => c.id !== id);
+    segarkanLookups();
+    return { id };
+  });
+}
+
 // ------------------------------------------------------------------------ accounts
 
 export async function getAccounts() {
