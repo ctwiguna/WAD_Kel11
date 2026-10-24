@@ -29,11 +29,12 @@ function buatFormAwal(members = [], accounts = []) {
     amount: '',
     category: '',
     member: members[0] ?? '',
-    toMember: members[0] ?? '',
     merchant: '',
     notes: '',
     account: accounts[0] ?? '',
-    toAccount: accounts[0] ?? '',
+    // dompet tujuan default ke dompet kedua supaya transfer tidak langsung ditolak
+    // karena dompet asal dan tujuan sama ketika pengguna baru memilih jenis transfer
+    toAccount: accounts[1] ?? accounts[0] ?? '',
   };
 }
 
