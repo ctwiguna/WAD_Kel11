@@ -10,7 +10,8 @@ export function save(key, data) {
   }
   try {
     localStorage.setItem(key, JSON.stringify(data));
-    console.log('[localStorage] save:', key, data);
+    // Isi data tidak dicetak supaya token atau isi sesi tidak pernah masuk log.
+    console.log('[localStorage] save:', key);
   } catch (e) {
     console.error('[localStorage] Gagal save:', key, e);
   }
@@ -24,7 +25,7 @@ export function load(key, fallback = null) {
   try {
     const raw = localStorage.getItem(key);
     const result = raw ? JSON.parse(raw) : fallback;
-    console.log('[localStorage] load:', key, result);
+    console.log('[localStorage] load:', key);
     return result;
   } catch (e) {
     console.error('[localStorage] Gagal load:', key, e);
